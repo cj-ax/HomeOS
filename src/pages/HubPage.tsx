@@ -363,7 +363,6 @@ const Glass = ({ children, style = {}, onClick, gridArea }: GlassProps) => (
       borderRadius: C.r,
       border: `1px solid ${C.borderGlass}`,
       padding: 16,
-      boxShadow: `${C.shadow}, inset 0 1px 0 rgba(255,255,255,0.06)`,
       gridArea,
       display: 'flex',
       flexDirection: 'column',
@@ -460,6 +459,64 @@ const SideCard = ({ icon, title, subtitle, onClick, children, style = {} }: Side
   </div>
 );
 
+interface CompactRowProps {
+  icon: ReactNode;
+  label: string;
+  summary: ReactNode;
+  accent?: string;
+  onClick?: () => void;
+}
+
+const CompactRow = ({ icon, label, summary, accent, onClick }: CompactRowProps) => (
+  <div
+    onClick={onClick}
+    style={{
+      background: C.card,
+      backdropFilter: C.blur,
+      WebkitBackdropFilter: C.blur,
+      borderRadius: 14,
+      border: `1px solid ${C.borderGlass}`,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '10px 12px',
+      flex: 1,
+      cursor: onClick ? 'pointer' : 'default',
+    }}
+  >
+    <div
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 8,
+        background: C.accentDim,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {icon}
+    </div>
+    <div style={{ fontSize: 10, fontWeight: 700, color: C.t2, flexShrink: 0 }}>{label}</div>
+    <div
+      style={{
+        flex: 1,
+        fontSize: 11,
+        fontWeight: 600,
+        color: accent || C.t1,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        textAlign: 'right',
+      }}
+    >
+      {summary}
+    </div>
+    {onClick && <ChevR sz={10} c={C.t3} />}
+  </div>
+);
+
 /* ── Mock Data ── */
 const ELEC_DATA = [3.2, 2.8, 4.1, 3.6, 5.2, 4.8, 3.9, 4.3, 5.1, 4.7, 3.5, 4.9, 5.6, 4.2];
 const GAS_DATA = [1.1, 1.3, 1.5, 1.2, 1.4, 1.6, 1.3, 1.1, 1.4, 1.2, 1.5, 1.3, 1.4, 1.4];
@@ -512,6 +569,7 @@ const DetailPage = ({ title, icon, onBack, children }: DetailPageProps) => (
     />
     {/* Floating panel */}
     <div
+      onClick={(e) => e.stopPropagation()}
       style={{
         position: 'fixed',
         top: '50%',
@@ -527,7 +585,7 @@ const DetailPage = ({ title, icon, onBack, children }: DetailPageProps) => (
         boxShadow: '0 16px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflow: 'auto',
         animation: 'fi .2s ease',
       }}
     >
@@ -805,6 +863,7 @@ export function HubPage() {
   const sp = useSpotify();
   const msgs = useMessages();
   const { plants, water: waterPlant, setWateredDate } = usePlants();
+  const urgentPlant = [...plants].sort((a, b) => a.daysUntil - b.daysUntil)[0] ?? null;
   const [plantUndo, setPlantUndo] = useState<Record<string, string>>({}); // entityId → previous ISO state
   const [spPos, setSpPos] = useState(0);
   const [showSpDevices, setShowSpDevices] = useState(false);
@@ -1294,6 +1353,11 @@ export function HubPage() {
                   {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
                 </div>
               )}
+              {sp.idle && sp.sourceList.length > 0 && (
+                <div style={{ marginTop: 16, fontSize: 12, color: C.t2, textAlign: 'center' }}>
+                  Pick a speaker to start playing
+                </div>
+              )}
               {sp.duration > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={4} />
@@ -1313,9 +1377,10 @@ export function HubPage() {
                   position: 'relative',
                 }}
               >
-                {/* Library icon */}
+                {/* Library icon — only when playing/paused */}
+                {!sp.idle && (
                 <button
-                  onClick={() => { setShowSpLibrary(!showSpLibrary); setShowSpDevices(false); }}
+                  onClick={() => { setShowSpLibrary(v => !v); setShowSpDevices(false); }}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -1327,11 +1392,18 @@ export function HubPage() {
                 >
                   {IC.library({ sz: 18, c: showSpLibrary ? C.accent : C.t2 })}
                 </button>
+                )}
                 <button onClick={() => sp.prev()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
                   {IC.prev({ sz: 18, c: C.t1 })}
                 </button>
                 <button
-                  onClick={() => sp.playPause()}
+                  onClick={() => {
+                    if (sp.idle) {
+                      setShowSpDevices(true);
+                    } else {
+                      sp.playPause();
+                    }
+                  }}
                   style={{
                     width: 48,
                     height: 48,
@@ -1355,7 +1427,7 @@ export function HubPage() {
                 {/* Device picker icon */}
                 {sp.sourceList.length > 0 && (
                   <button
-                    onClick={() => { setShowSpDevices(!showSpDevices); setShowSpLibrary(false); }}
+                    onClick={() => { setShowSpDevices(v => !v); setShowSpLibrary(false); }}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -1369,13 +1441,18 @@ export function HubPage() {
                   </button>
                 )}
               </div>
-              {/* Device picker dropdown */}
-              {showSpDevices && (
+              {/* Device picker — auto-show when idle */}
+              {(showSpDevices || sp.idle) && sp.sourceList.length > 0 && (
                 <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {sp.sourceList.map((src) => (
                     <button
                       key={src}
-                      onClick={() => { sp.selectSource(src); setShowSpDevices(false); }}
+                      onClick={() => {
+                        sp.selectSource(src);
+                        setShowSpDevices(false);
+                        // After selecting source, start playing liked songs
+                        if (sp.idle) setTimeout(() => sp.playMedia('spotify:user:spotify:collection', 'spotify://'), 500);
+                      }}
                       style={{
                         background: src === sp.source ? C.accentDim : 'transparent',
                         border: `1px solid ${src === sp.source ? C.accent : C.border}`,
@@ -1456,6 +1533,10 @@ export function HubPage() {
                 </div>
                 {sp.browseLoading ? (
                   <div style={{ textAlign: 'center', color: C.t2, fontSize: 12, padding: 20 }}>Loading…</div>
+                ) : sp.browseError ? (
+                  <div style={{ textAlign: 'center', color: C.amber, fontSize: 12, padding: 20 }}>{sp.browseError}</div>
+                ) : sp.browseItems.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: C.t2, fontSize: 12, padding: 20 }}>No results</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
                     {sp.browseItems.map((item) => (
@@ -1714,7 +1795,7 @@ export function HubPage() {
         position: 'relative',
         overflow: 'hidden',
         display: 'grid',
-        gridTemplateColumns: '220px 1fr 310px',
+        gridTemplateColumns: '220px 1fr 280px',
         gridTemplateRows: 'auto 1fr auto auto auto',
         gridTemplateAreas: '"header header header" "utils hero sidebar" "weather hero sidebar" "commute hero sidebar" "family family family"',
       }}
@@ -1729,8 +1810,8 @@ export function HubPage() {
       <header
         style={{
           gridArea: 'header',
-          display: 'flex',
-          justifyContent: 'space-between',
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
           alignItems: 'center',
           padding: '12px 20px 8px 16px',
           background: 'rgba(10,15,20,0.35)',
@@ -1752,12 +1833,19 @@ export function HubPage() {
           >
             {IC.home({ sz: 20, c: C.accent })}
           </div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>Smart Home</div>
-            <div style={{ fontSize: 11, color: C.t1 }}>Victoria, MN</div>
-          </div>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>The Axelson's</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            fontVariantNumeric: 'tabular-nums',
+            textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+          }}
+        >
+          {tStr}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {topAlert && (
               <div
@@ -1811,16 +1899,6 @@ export function HubPage() {
               <span style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{wxHumidity}%</span>
             </Glass>
           </div>
-          <span
-            style={{
-              fontSize: 22,
-              fontWeight: 800,
-              fontVariantNumeric: 'tabular-nums',
-              textShadow: '0 2px 8px rgba(0,0,0,0.5)',
-            }}
-          >
-            {tStr}
-          </span>
           <button
             onClick={() => setDb('press')}
             style={{
@@ -1872,7 +1950,7 @@ export function HubPage() {
         {/* Electricity */}
         <Glass
           onClick={() => setPage('electricity')}
-          style={{ animation: 'float 6s ease-in-out infinite' }}
+          style={{  }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             {IC.zap({ sz: 13, c: C.accent })}
@@ -1899,7 +1977,7 @@ export function HubPage() {
         {/* Gas */}
         <Glass
           onClick={() => setPage('gas')}
-          style={{ animation: 'float 6s ease-in-out infinite 0.5s' }}
+          style={{  }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             {IC.flame({ sz: 13, c: C.amber })}
@@ -1926,7 +2004,7 @@ export function HubPage() {
         {/* Water */}
         <Glass
           onClick={() => setPage('water')}
-          style={{ animation: 'float 6s ease-in-out infinite 1s' }}
+          style={{  }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             {IC.drop({ sz: 13, c: '#60a5fa' })}
@@ -1977,7 +2055,7 @@ export function HubPage() {
             <span style={{ fontSize: 14, fontWeight: 800, color: '#5eead4' }}>{precipBadge.text}</span>
           </Glass>
         )}
-        <Glass onClick={() => setPage('weather')} style={{ animation: 'float 6s ease-in-out infinite 1s', cursor: 'pointer' }}>
+        <Glass onClick={() => setPage('weather')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
             {forecast.map((f) => (
               <div key={f.d} style={{ textAlign: 'center' }}>
@@ -2010,10 +2088,10 @@ export function HubPage() {
       </div>
 
       {/* Commute */}
-      <div style={{ gridArea: 'commute', padding: '8px 6px 0 10px' }}>
+      <div style={{ gridArea: 'commute', padding: '8px 6px 10px 10px' }}>
         <Glass
           onClick={() => setPage('commute')}
-          style={{ animation: 'float 6s ease-in-out infinite 2s' }}
+          style={{  }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {IC.car({ sz: 16, c: C.accent })}
@@ -2086,153 +2164,59 @@ export function HubPage() {
           gap: 8,
           padding: '8px 10px 10px 6px',
           overflow: 'hidden',
-          background: 'rgba(10,15,20,0.3)',
-          backdropFilter: 'blur(8px)',
         }}
       >
-        {/* Ring Cameras */}
-        <SideCard
-          icon={IC.cam({ sz: 13, c: C.accent })}
-          title="Ring Cameras"
-          subtitle="3 Online"
-          onClick={() => setPage('cameras')}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {CAMERAS.map((cam) => (
-              <div
-                key={cam.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '6px 8px',
-                  background: 'rgba(255,255,255,0.04)',
-                  borderRadius: 8,
-                  border: `1px solid ${C.border}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Dot color={C.green} sz={5} />
-                  <span style={{ fontSize: 10, color: C.t1 }}>{cam.n}</span>
-                </div>
-                {cam.motion ? (
-                  <span
-                    style={{
-                      fontSize: 8,
-                      fontWeight: 700,
-                      color: C.amber,
-                      background: `${C.amber}15`,
-                      padding: '1px 6px',
-                      borderRadius: 4,
-                    }}
-                  >
-                    MOTION
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 8, color: C.t3 }}>Clear</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </SideCard>
-
-        {/* Plants */}
-        <SideCard
-          icon={IC.leaf({ sz: 13, c: C.green })}
-          title="Plants"
-          onClick={() => setPage('plants')}
-        >
-          {plants.map((p, i) => (
-            <div key={p.name} style={{ marginBottom: i < plants.length - 1 ? 6 : 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ fontSize: 10, color: p.overdue ? C.red : p.needsWater ? C.amber : C.t1 }}>{p.name}</span>
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 700,
-                    color: p.overdue ? C.red : p.needsWater ? C.amber : C.t2,
-                  }}
-                >
-                  {p.overdue ? 'Overdue' : p.daysUntil === 0 ? 'Today' : `${p.daysUntil}d`}
-                </span>
-              </div>
-              <Bar value={p.progress} color={p.overdue ? C.red : p.needsWater ? C.amber : C.green} h={3} />
-            </div>
-          ))}
-        </SideCard>
-
-        {/* Calendar */}
-        <SideCard
-          icon={IC.cal({ sz: 13, c: C.purple })}
-          title="Schedule"
-          onClick={() => setPage('calendar')}
-        >
-          {EVENTS.map((e, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                gap: 8,
-                padding: '4px 0',
-                borderBottom:
-                  i < EVENTS.length - 1 ? `1px solid ${C.border}` : 'none',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: C.t1,
-                  fontVariantNumeric: 'tabular-nums',
-                  width: 36,
-                  flexShrink: 0,
-                }}
-              >
-                {e.t}
-              </span>
-              <div>
-                <span style={{ fontSize: 10, fontWeight: 600 }}>{e.title}</span>
-                {e.tag && (
-                  <span style={{ marginLeft: 4 }}>
-                    <Pill color={C.purple}>{e.tag}</Pill>
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </SideCard>
-
-        {/* Messages */}
-        <SideCard
-          icon={IC.msg({ sz: 13, c: C.purple })}
-          title="Family"
-          onClick={() => setPage('family')}
-        >
-          {msgs.messages.length === 0 ? (
-            <div style={{ fontSize: 10, color: C.t2, padding: '4px 0' }}>No messages yet</div>
-          ) : (
-            msgs.messages.slice(0, 4).map((m, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  gap: 6,
-                  padding: '4px 0',
-                  borderBottom: i < Math.min(msgs.messages.length, 4) - 1 ? `1px solid ${C.border}` : 'none',
-                }}
-              >
-                <Dot color={m.color} sz={5} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: m.color }}>{m.from}</span>
-                    <span style={{ fontSize: 8, color: C.t2 }}>{timeAgo(m.lastChanged)}</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: C.t1, marginTop: 1 }}>{m.text}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </SideCard>
+        {/* Widget rows — 50% of sidebar height */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CompactRow
+            icon={IC.cam({ sz: 13, c: C.accent })}
+            label="Cameras"
+            summary={
+              CAMERAS.some(c => c.motion)
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={C.amber} sz={5} />Motion — {CAMERAS.find(c => c.motion)!.n}</span>
+                : `${CAMERAS.length} Online`
+            }
+            accent={CAMERAS.some(c => c.motion) ? C.amber : C.green}
+            onClick={() => setPage('cameras')}
+          />
+          <CompactRow
+            icon={IC.leaf({ sz: 13, c: C.green })}
+            label="Plants"
+            summary={
+              urgentPlant
+                ? urgentPlant.overdue
+                  ? `${urgentPlant.name} overdue`
+                  : urgentPlant.daysUntil === 0
+                    ? `Water ${urgentPlant.name} today`
+                    : `${urgentPlant.daysUntil}d til ${urgentPlant.name}`
+                : 'All good'
+            }
+            accent={urgentPlant?.overdue ? C.red : urgentPlant?.needsWater ? C.amber : C.green}
+            onClick={() => setPage('plants')}
+          />
+          <CompactRow
+            icon={IC.cal({ sz: 13, c: C.purple })}
+            label="Schedule"
+            summary={
+              EVENTS.length > 0
+                ? <><span style={{ color: C.t2 }}>{EVENTS[0].t}</span> {EVENTS[0].title}</>
+                : 'No events'
+            }
+            onClick={() => setPage('calendar')}
+          />
+          <CompactRow
+            icon={IC.msg({ sz: 13, c: C.purple })}
+            label="Family"
+            summary={(() => {
+              const recent = msgs.messages[0];
+              if (!recent) return 'No messages';
+              const age = (Date.now() - new Date(recent.lastChanged).getTime()) / 60000;
+              if (age > 30) return 'No new messages';
+              return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={recent.color} sz={5} />{recent.from}: {recent.text}</span>;
+            })()}
+            onClick={() => setPage('family')}
+          />
+        </div>
 
         {/* Spotify */}
         <div
@@ -2243,15 +2227,15 @@ export function HubPage() {
             WebkitBackdropFilter: C.blur,
             borderRadius: C.r,
             border: `1px solid ${C.borderGlass}`,
-            boxShadow: `${C.shadow}, inset 0 1px 0 rgba(255,255,255,0.06)`,
             overflow: 'hidden',
-            marginTop: 'auto',
-            flex: '0 0 auto',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
             cursor: 'pointer',
           }}
         >
           {sp.albumArt ? (
-            <div style={{ height: 100, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 60, position: 'relative', overflow: 'hidden' }}>
               <img
                 src={sp.albumArt}
                 alt=""

@@ -127,11 +127,13 @@ export function useSpotify() {
   const [browseItems, setBrowseItems] = useState<MediaItem[]>([]);
   const [browsePath, setBrowsePath] = useState<{ id: string; type: string; title: string }[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
 
   const browse = useCallback(
     async (mediaContentId?: string, mediaContentType?: string, title?: string) => {
       if (!connection) return;
       setBrowseLoading(true);
+      setBrowseError(null);
       try {
         const msg = {
           type: 'media_player/browse_media' as const,
@@ -172,7 +174,13 @@ export function useSpotify() {
         } else {
           setBrowsePath([]);
         }
-      } catch (err) {
+      } catch (err: unknown) {
+        const e = err as { code?: string; message?: string };
+        if (e?.code === 'not_supported') {
+          setBrowseError('Start playing Spotify on a device first');
+        } else {
+          setBrowseError(e?.message ?? 'Browse failed');
+        }
         console.warn('[Home OS] Spotify browse error:', err);
       } finally {
         setBrowseLoading(false);
@@ -217,6 +225,7 @@ export function useSpotify() {
     browseItems,
     browsePath,
     browseLoading,
+    browseError,
     playMedia,
   };
 }
