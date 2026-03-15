@@ -10,6 +10,9 @@ import { useWeather, wmoToType, wmoToDescription } from '@/hooks/useWeather';
 import { usePirateWeather } from '@/hooks/usePirateWeather';
 import { useNWSForecast } from '@/hooks/useNWSForecast';
 import { useNWSAlerts } from '@/hooks/useNWSAlerts';
+import { useSpotify } from '@/hooks/useSpotify';
+import { useMessages } from '@/hooks/useMessages';
+import { usePlants } from '@/hooks/usePlants';
 
 /* ── Color Constants ── */
 const C = {
@@ -41,6 +44,22 @@ interface SvProps {
   c?: string;
   f?: boolean;
 }
+
+/** Format ISO timestamp to relative time */
+const timeAgo = (iso: string) => {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return 'now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+};
+
+/** Format seconds → m:ss */
+const fmtTime = (s: number) => {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+};
 
 const Sv = ({ children, sz = 18, c = C.t2, f = false }: SvProps) => (
   <svg
@@ -201,6 +220,18 @@ const IC = {
   back: (p: IconProps = {}) => (
     <Sv {...p}>
       <path d="M19 12H5M12 19l-7-7 7-7" />
+    </Sv>
+  ),
+  speaker: (p: IconProps = {}) => (
+    <Sv {...p}>
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+    </Sv>
+  ),
+  library: (p: IconProps = {}) => (
+    <Sv {...p}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     </Sv>
   ),
 };
@@ -448,13 +479,6 @@ const EVENTS = [
   { t: '9:00', title: 'Sprint Review', tag: 'Summit' },
   { t: '12:30', title: 'Lunch w/ Tyler', tag: undefined },
   { t: '3:00', title: 'Design Critique', tag: 'Summit' },
-];
-const PLANTS = [
-  { n: 'Monstera', m: 0.72 },
-  { n: 'Columnar Cactus', m: 0.55 },
-  { n: 'Peruvian Apple Cactus', m: 0.48 },
-  { n: 'Prickly Pear', m: 0.31 },
-  { n: 'Euphorbia', m: 0.65 },
 ];
 const FAMILY = [
   { name: 'Chris', color: C.accent },
@@ -776,21 +800,32 @@ type PageId =
 
 export function HubPage() {
   const [time, setTime] = useState(new Date());
-  const [playing, setPlaying] = useState(true);
-  const [prog, setProg] = useState(0.37);
   const [db, setDb] = useState<string | null>(null);
   const [page, setPage] = useState<PageId | null>(null);
+  const sp = useSpotify();
+  const msgs = useMessages();
+  const { plants, water: waterPlant, setWateredDate } = usePlants();
+  const [plantUndo, setPlantUndo] = useState<Record<string, string>>({}); // entityId → previous ISO state
+  const [spPos, setSpPos] = useState(0);
+  const [showSpDevices, setShowSpDevices] = useState(false);
+  const [showSpLibrary, setShowSpLibrary] = useState(false);
 
   useEffect(() => {
     const i = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(i);
   }, []);
 
+  // Live Spotify position tracker
   useEffect(() => {
-    if (!playing) return;
-    const i = setInterval(() => setProg((p) => (p >= 1 ? 0 : p + 0.002)), 150);
+    if (!sp.playing) { setSpPos(sp.position); return; }
+    const tick = () => {
+      const elapsed = (Date.now() - sp.updatedAt) / 1000;
+      setSpPos(Math.min(sp.position + elapsed, sp.duration));
+    };
+    tick();
+    const i = setInterval(tick, 1000);
     return () => clearInterval(i);
-  }, [playing]);
+  }, [sp.playing, sp.position, sp.updatedAt, sp.duration]);
 
   const closeDb = useCallback(() => setDb(null), []);
   const tStr = time.toLocaleTimeString('en-US', {
@@ -1046,39 +1081,88 @@ export function HubPage() {
         </DetailPage>
       ),
       plants: (
-        <DetailPage title="Plant Moisture" icon={IC.leaf({ sz: 20, c: C.green })} onBack={goBack}>
+        <DetailPage title="Plant Care" icon={IC.leaf({ sz: 20, c: C.green })} onBack={goBack}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {PLANTS.map((p) => (
-              <Glass key={p.n}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: p.m < 0.35 ? C.amber : C.white,
-                    marginBottom: 8,
-                  }}
-                >
-                  {p.n}
-                </div>
-                <div
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 800,
-                    color: p.m < 0.35 ? C.amber : C.green,
-                  }}
-                >
-                  {Math.round(p.m * 100)}%
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <Bar value={p.m} color={p.m < 0.35 ? C.amber : C.green} h={6} />
-                </div>
-                {p.m < 0.35 && (
-                  <div style={{ fontSize: 9, color: C.amber, marginTop: 6, fontWeight: 600 }}>
-                    Needs water
+            {plants.map((p) => {
+              const barColor = p.overdue ? C.red : p.needsWater ? C.amber : C.green;
+              return (
+                <Glass key={p.name}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: p.overdue ? C.red : p.needsWater ? C.amber : C.white,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {p.name}
                   </div>
-                )}
-              </Glass>
-            ))}
+                  <div style={{ fontSize: 10, color: C.t2, marginBottom: 8 }}>
+                    Every {p.intervalDays} days
+                  </div>
+                  <div style={{ marginBottom: 4 }}>
+                    <Bar value={p.progress} color={barColor} h={6} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, color: p.overdue ? C.red : p.needsWater ? C.amber : C.t2 }}>
+                      {p.overdue
+                        ? `${p.daysSince - p.intervalDays}d overdue`
+                        : p.daysUntil === 0
+                          ? 'Water today'
+                          : `${p.daysUntil}d until next`}
+                    </span>
+                    {plantUndo[p.entityId] ? (
+                      <button
+                        onClick={() => {
+                          setWateredDate(p.entityId, new Date(plantUndo[p.entityId]));
+                          setPlantUndo((prev) => { const n = { ...prev }; delete n[p.entityId]; return n; });
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: `1px solid ${C.t2}`,
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          color: C.t1,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Undo
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          const prevDate = p.lastWatered?.toISOString() ?? '';
+                          setPlantUndo((prev) => ({ ...prev, [p.entityId]: prevDate }));
+                          waterPlant(p.entityId);
+                          setTimeout(() => {
+                            setPlantUndo((prev) => { const n = { ...prev }; delete n[p.entityId]; return n; });
+                          }, 10000);
+                        }}
+                        style={{
+                          background: barColor,
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          color: '#0a0f14',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Water
+                      </button>
+                    )}
+                  </div>
+                  {p.lastWatered && (
+                    <div style={{ fontSize: 9, color: C.t3, marginTop: 6 }}>
+                      Last: {p.lastWatered.toLocaleDateString()}
+                    </div>
+                  )}
+                </Glass>
+              );
+            })}
           </div>
         </DetailPage>
       ),
@@ -1088,31 +1172,84 @@ export function HubPage() {
           icon={IC.msg({ sz: 20, c: C.purple })}
           onBack={goBack}
         >
-          <Glass>
-            {[
-              { from: 'Broadcast', text: 'Pizza night — 6 PM!', time: '2m', c: C.purple },
-              { from: 'Remi', text: 'Finished dishwasher \u2713', time: '14m', c: C.green },
-              { from: 'Desmond', text: 'Screen time?', time: '22m', c: C.accent },
-            ].map((m, i) => (
-              <div
-                key={i}
+          {/* Broadcast composer */}
+          <Glass style={{ padding: '16px 20px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.purple, marginBottom: 8 }}>Send Broadcast</div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const input = (e.target as HTMLFormElement).elements.namedItem('broadcast') as HTMLInputElement;
+                if (input.value.trim()) {
+                  msgs.sendBroadcast(input.value.trim());
+                  input.value = '';
+                }
+              }}
+              style={{ display: 'flex', gap: 8 }}
+            >
+              <input
+                name="broadcast"
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                enterKeyHint="send"
+                placeholder="Message all screens…"
+                maxLength={255}
                 style={{
-                  display: 'flex',
-                  gap: 10,
-                  padding: '10px 0',
-                  borderBottom: i < 2 ? `1px solid ${C.border}` : 'none',
+                  flex: 1,
+                  background: C.well,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                  color: C.white,
+                  fontSize: 16,
+                  outline: 'none',
+                  WebkitAppearance: 'none',
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  background: C.purple,
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: '#0a0f14',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
                 }}
               >
-                <Dot color={m.c} sz={7} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: m.c }}>{m.from}</span>
-                    <span style={{ fontSize: 9, color: C.t2 }}>{m.time}</span>
+                Send
+              </button>
+            </form>
+          </Glass>
+
+          {/* Message history */}
+          <Glass style={{ marginTop: 16 }}>
+            {msgs.messages.length === 0 ? (
+              <div style={{ fontSize: 12, color: C.t2, textAlign: 'center', padding: 16 }}>No messages yet</div>
+            ) : (
+              msgs.messages.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    gap: 10,
+                    padding: '10px 0',
+                    borderBottom: i < msgs.messages.length - 1 ? `1px solid ${C.border}` : 'none',
+                  }}
+                >
+                  <Dot color={m.color} sz={7} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: m.color }}>{m.from}</span>
+                      <span style={{ fontSize: 9, color: C.t2 }}>{timeAgo(m.lastChanged)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: C.t1, marginTop: 2 }}>{m.text}</div>
                   </div>
-                  <div style={{ fontSize: 12, color: C.t1, marginTop: 2 }}>{m.text}</div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </Glass>
         </DetailPage>
       ),
@@ -1132,32 +1269,40 @@ export function HubPage() {
       music: (
         <DetailPage title="Now Playing" icon={IC.music({ sz: 20, c: C.accent })} onBack={goBack}>
           <Glass style={{ padding: 0 }}>
-            <div
-              style={{
-                height: 200,
-                background:
-                  'linear-gradient(135deg,rgba(26,26,46,0.8),rgba(22,33,62,0.8))',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {IC.music({ sz: 48, c: C.t3 })}
-            </div>
+            {sp.albumArt ? (
+              <div style={{ height: 200, position: 'relative', overflow: 'hidden' }}>
+                <img src={sp.albumArt} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 50%, rgba(12,16,22,0.9))' }} />
+              </div>
+            ) : (
+              <div
+                style={{
+                  height: 200,
+                  background: 'linear-gradient(135deg,rgba(26,26,46,0.8),rgba(22,33,62,0.8))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {IC.music({ sz: 48, c: C.t3 })}
+              </div>
+            )}
             <div style={{ padding: '20px 24px 24px' }}>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>Midnight City</div>
-              <div style={{ fontSize: 12, color: C.t1, marginTop: 2 }}>
-                M83 &middot; Hurry Up, We're Dreaming
-              </div>
-              <div style={{ marginTop: 16 }}>
-                <Bar value={prog} color={C.accent} h={4} />
-                <div
-                  style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}
-                >
-                  <span style={{ fontSize: 10, color: C.t2 }}>1:32</span>
-                  <span style={{ fontSize: 10, color: C.t2 }}>4:03</span>
+              <div style={{ fontSize: 20, fontWeight: 700 }}>{sp.title || 'Not Playing'}</div>
+              {sp.artist && (
+                <div style={{ fontSize: 12, color: C.t1, marginTop: 2 }}>
+                  {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
                 </div>
-              </div>
+              )}
+              {sp.duration > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={4} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                    <span style={{ fontSize: 10, color: C.t2 }}>{fmtTime(spPos)}</span>
+                    <span style={{ fontSize: 10, color: C.t2 }}>{fmtTime(sp.duration)}</span>
+                  </div>
+                </div>
+              )}
               <div
                 style={{
                   display: 'flex',
@@ -1165,20 +1310,28 @@ export function HubPage() {
                   alignItems: 'center',
                   gap: 24,
                   marginTop: 16,
+                  position: 'relative',
                 }}
               >
+                {/* Library icon */}
                 <button
+                  onClick={() => { setShowSpLibrary(!showSpLibrary); setShowSpDevices(false); }}
                   style={{
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
                     padding: 4,
+                    position: 'absolute',
+                    left: 0,
                   }}
                 >
+                  {IC.library({ sz: 18, c: showSpLibrary ? C.accent : C.t2 })}
+                </button>
+                <button onClick={() => sp.prev()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
                   {IC.prev({ sz: 18, c: C.t1 })}
                 </button>
                 <button
-                  onClick={() => setPlaying(!playing)}
+                  onClick={() => sp.playPause()}
                   style={{
                     width: 48,
                     height: 48,
@@ -1192,23 +1345,166 @@ export function HubPage() {
                     boxShadow: '0 2px 8px rgba(0,0,0,.3)',
                   }}
                 >
-                  {playing
+                  {sp.playing
                     ? IC.pause({ sz: 16, c: '#0a0f14' })
                     : IC.play({ sz: 16, c: '#0a0f14' })}
                 </button>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 4,
-                  }}
-                >
+                <button onClick={() => sp.next()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
                   {IC.next({ sz: 18, c: C.t1 })}
                 </button>
+                {/* Device picker icon */}
+                {sp.sourceList.length > 0 && (
+                  <button
+                    onClick={() => { setShowSpDevices(!showSpDevices); setShowSpLibrary(false); }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 4,
+                      position: 'absolute',
+                      right: 0,
+                    }}
+                  >
+                    {IC.speaker({ sz: 18, c: showSpDevices ? C.accent : C.t2 })}
+                  </button>
+                )}
               </div>
+              {/* Device picker dropdown */}
+              {showSpDevices && (
+                <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {sp.sourceList.map((src) => (
+                    <button
+                      key={src}
+                      onClick={() => { sp.selectSource(src); setShowSpDevices(false); }}
+                      style={{
+                        background: src === sp.source ? C.accentDim : 'transparent',
+                        border: `1px solid ${src === sp.source ? C.accent : C.border}`,
+                        borderRadius: 8,
+                        padding: '8px 12px',
+                        color: src === sp.source ? C.accent : C.t1,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      {src}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </Glass>
+
+          {/* Browse / Library */}
+          {showSpLibrary && (
+          <Glass style={{ padding: '16px 20px', marginTop: 16 }}>
+            {sp.browseItems.length === 0 && !sp.browseLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Library</div>
+                {[
+                  { label: 'Recently Played', ct: 'spotify://current_user_recently_played' },
+                  { label: 'Playlists', ct: 'spotify://current_user_playlists' },
+                  { label: 'Liked Songs', ct: 'spotify://current_user_saved_tracks' },
+                  { label: 'Podcasts', ct: 'spotify://current_user_saved_shows' },
+                  { label: 'Top Artists', ct: 'spotify://current_user_top_artists' },
+                  { label: 'Top Tracks', ct: 'spotify://current_user_top_tracks' },
+                  { label: 'Artists', ct: 'spotify://current_user_followed_artists' },
+                  { label: 'Albums', ct: 'spotify://current_user_saved_albums' },
+                ].map((lib) => (
+                  <button
+                    key={lib.label}
+                    onClick={() => sp.browse(lib.ct, lib.ct, lib.label)}
+                    style={{
+                      background: C.well,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 10,
+                      padding: '12px 14px',
+                      color: C.t1,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    {lib.label}
+                    <ChevR sz={12} c={C.t2} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <button
+                    onClick={() => {
+                      if (sp.browsePath.length <= 1) {
+                        // Reset to root
+                        sp.browse();
+                        // Clear items manually by browsing root which returns categories
+                      } else {
+                        sp.browseBack();
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: C.t1 }}
+                  >
+                    {IC.prev({ sz: 14, c: C.t1 })}
+                  </button>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>
+                    {sp.browsePath.length > 0 ? sp.browsePath[sp.browsePath.length - 1].title : 'Library'}
+                  </div>
+                </div>
+                {sp.browseLoading ? (
+                  <div style={{ textAlign: 'center', color: C.t2, fontSize: 12, padding: 20 }}>Loading…</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+                    {sp.browseItems.map((item) => (
+                      <button
+                        key={item.media_content_id}
+                        onClick={() => {
+                          if (item.can_expand) {
+                            sp.browse(item.media_content_id, item.media_content_type, item.title);
+                          } else if (item.can_play) {
+                            sp.playMedia(item.media_content_id, item.media_content_type);
+                          }
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '8px 6px',
+                          borderRadius: 8,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          textAlign: 'left',
+                        }}
+                      >
+                        {item.thumbnail ? (
+                          <img
+                            src={item.thumbnail}
+                            alt=""
+                            style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+                          />
+                        ) : (
+                          <div style={{ width: 40, height: 40, borderRadius: 6, background: C.well, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {IC.music({ sz: 16, c: C.t3 })}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: C.white, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.title}
+                          </div>
+                        </div>
+                        {item.can_expand && <ChevR sz={12} c={C.t3} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Glass>
+          )}
         </DetailPage>
       ),
       weather: (
@@ -1846,21 +2142,21 @@ export function HubPage() {
           title="Plants"
           onClick={() => setPage('plants')}
         >
-          {PLANTS.map((p, i) => (
-            <div key={p.n} style={{ marginBottom: i < PLANTS.length - 1 ? 6 : 0 }}>
+          {plants.map((p, i) => (
+            <div key={p.name} style={{ marginBottom: i < plants.length - 1 ? 6 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                <span style={{ fontSize: 10, color: p.m < 0.35 ? C.amber : C.t1 }}>{p.n}</span>
+                <span style={{ fontSize: 10, color: p.overdue ? C.red : p.needsWater ? C.amber : C.t1 }}>{p.name}</span>
                 <span
                   style={{
                     fontSize: 9,
                     fontWeight: 700,
-                    color: p.m < 0.35 ? C.amber : C.t2,
+                    color: p.overdue ? C.red : p.needsWater ? C.amber : C.t2,
                   }}
                 >
-                  {Math.round(p.m * 100)}%
+                  {p.overdue ? 'Overdue' : p.daysUntil === 0 ? 'Today' : `${p.daysUntil}d`}
                 </span>
               </div>
-              <Bar value={p.m} color={p.m < 0.35 ? C.amber : C.green} h={3} />
+              <Bar value={p.progress} color={p.overdue ? C.red : p.needsWater ? C.amber : C.green} h={3} />
             </div>
           ))}
         </SideCard>
@@ -1912,30 +2208,30 @@ export function HubPage() {
           title="Family"
           onClick={() => setPage('family')}
         >
-          {[
-            { from: 'Broadcast', text: 'Pizza night — 6 PM!', time: '2m', c: C.purple },
-            { from: 'Remi', text: 'Finished dishwasher \u2713', time: '14m', c: C.green },
-            { from: 'Desmond', text: 'Screen time?', time: '22m', c: C.accent },
-          ].map((m, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                gap: 6,
-                padding: '4px 0',
-                borderBottom: i < 2 ? `1px solid ${C.border}` : 'none',
-              }}
-            >
-              <Dot color={m.c} sz={5} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: m.c }}>{m.from}</span>
-                  <span style={{ fontSize: 8, color: C.t2 }}>{m.time}</span>
+          {msgs.messages.length === 0 ? (
+            <div style={{ fontSize: 10, color: C.t2, padding: '4px 0' }}>No messages yet</div>
+          ) : (
+            msgs.messages.slice(0, 4).map((m, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  padding: '4px 0',
+                  borderBottom: i < Math.min(msgs.messages.length, 4) - 1 ? `1px solid ${C.border}` : 'none',
+                }}
+              >
+                <Dot color={m.color} sz={5} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: m.color }}>{m.from}</span>
+                    <span style={{ fontSize: 8, color: C.t2 }}>{timeAgo(m.lastChanged)}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: C.t1, marginTop: 1 }}>{m.text}</div>
                 </div>
-                <div style={{ fontSize: 10, color: C.t1, marginTop: 1 }}>{m.text}</div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </SideCard>
 
         {/* Spotify */}
@@ -1954,19 +2250,28 @@ export function HubPage() {
             cursor: 'pointer',
           }}
         >
-          <div
-            style={{
-              height: 100,
-              background:
-                'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {IC.music({ sz: 28, c: C.t3 })}
-          </div>
+          {sp.albumArt ? (
+            <div style={{ height: 100, position: 'relative', overflow: 'hidden' }}>
+              <img
+                src={sp.albumArt}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(12,16,22,0.8))' }} />
+            </div>
+          ) : (
+            <div
+              style={{
+                height: 100,
+                background: 'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {IC.music({ sz: 28, c: C.t3 })}
+            </div>
+          )}
           <div style={{ padding: '12px 14px 16px' }}>
             <div
               style={{
@@ -1975,31 +2280,31 @@ export function HubPage() {
                 justifyContent: 'space-between',
               }}
             >
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>Midnight City</div>
-                <div style={{ fontSize: 10, color: C.t1, marginTop: 2 }}>
-                  M83 &middot; Hurry Up, We're Dreaming
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {sp.title || 'Not Playing'}
                 </div>
+                {sp.artist && (
+                  <div style={{ fontSize: 10, color: C.t1, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
+                  </div>
+                )}
               </div>
               <ChevR />
             </div>
-            <div style={{ marginTop: 8 }}>
-              <Bar value={prog} color={C.accent} h={3} />
-              <div
-                style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}
-              >
-                <span
-                  style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}
-                >
-                  1:32
-                </span>
-                <span
-                  style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}
-                >
-                  4:03
-                </span>
+            {sp.duration > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={3} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                  <span style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtTime(spPos)}
+                  </span>
+                  <span style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>
+                    {fmtTime(sp.duration)}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
             <div
               style={{
                 display: 'flex',
@@ -2010,20 +2315,13 @@ export function HubPage() {
               }}
             >
               <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 2,
-                }}
+                onClick={(e) => { e.stopPropagation(); sp.prev(); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
               >
                 {IC.prev({ sz: 14, c: C.t1 })}
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPlaying(!playing);
-                }}
+                onClick={(e) => { e.stopPropagation(); sp.playPause(); }}
                 style={{
                   width: 36,
                   height: 36,
@@ -2037,17 +2335,13 @@ export function HubPage() {
                   boxShadow: '0 2px 8px rgba(0,0,0,.3)',
                 }}
               >
-                {playing
+                {sp.playing
                   ? IC.pause({ sz: 12, c: '#0a0f14' })
                   : IC.play({ sz: 12, c: '#0a0f14' })}
               </button>
               <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 2,
-                }}
+                onClick={(e) => { e.stopPropagation(); sp.next(); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
               >
                 {IC.next({ sz: 14, c: C.t1 })}
               </button>

@@ -11,7 +11,7 @@ export function useEntity(entityId: string): HassEntity | undefined {
 
   const entity = useMemo(() => {
     return entities[entityId];
-  }, [entities[entityId]?.last_changed, entities[entityId]?.state, entityId]);
+  }, [entities[entityId]?.last_changed, entities[entityId]?.last_updated, entities[entityId]?.state, entityId]);
 
   return entity;
 }
