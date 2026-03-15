@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback, type CSSProperties, type ReactNode } 
 import { BG } from '@/assets/bg';
 import { useWeather, wmoToType, wmoToDescription } from '@/hooks/useWeather';
 import { usePirateWeather } from '@/hooks/usePirateWeather';
+import { useNWSForecast } from '@/hooks/useNWSForecast';
+import { useNWSAlerts } from '@/hooks/useNWSAlerts';
 
 /* ── Color Constants ── */
 const C = {
@@ -472,50 +474,73 @@ interface DetailPageProps {
 }
 
 const DetailPage = ({ title, icon, onBack, children }: DetailPageProps) => (
-  <div
-    style={{
-      position: 'absolute',
-      inset: 0,
-      zIndex: 100,
-      background: 'rgba(6,8,12,0.92)',
-      backdropFilter: 'blur(24px)',
-      display: 'flex',
-      flexDirection: 'column',
-      animation: 'fi .2s ease',
-    }}
-  >
+  <>
+    {/* Backdrop — click to dismiss */}
+    <div
+      onClick={onBack}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 90,
+        background: 'rgba(0,0,0,0.4)',
+        animation: 'fi .15s ease',
+      }}
+    />
+    {/* Floating panel */}
     <div
       style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        zIndex: 100,
+        width: 'min(560px, 80vw)',
+        maxHeight: '75vh',
+        background: 'rgba(10,14,20,0.92)',
+        backdropFilter: 'blur(24px)',
+        border: `1px solid ${C.borderGlass}`,
+        borderRadius: 22,
+        boxShadow: '0 16px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
         display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '16px 20px',
-        borderBottom: `1px solid ${C.border}`,
+        flexDirection: 'column',
+        overflow: 'hidden',
+        animation: 'fi .2s ease',
       }}
     >
-      <button
-        onClick={onBack}
+      <div
         style={{
-          background: 'rgba(255,255,255,0.06)',
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          width: 36,
-          height: 36,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
+          justifyContent: 'space-between',
+          padding: '14px 18px',
+          borderBottom: `1px solid ${C.border}`,
+          flexShrink: 0,
         }}
       >
-        {IC.back({ sz: 18, c: C.t1 })}
-      </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {icon}
-        <span style={{ fontSize: 18, fontWeight: 700 }}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icon}
+          <span style={{ fontSize: 18, fontWeight: 700 }}>{title}</span>
+        </div>
+        <button
+          onClick={onBack}
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          {IC.x({ sz: 16, c: C.t1 })}
+        </button>
       </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>{children}</div>
     </div>
-    <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>{children}</div>
-  </div>
+  </>
 );
 
 /* ── Doorbell Press Overlay ── */
@@ -746,7 +771,8 @@ type PageId =
   | 'family'
   | 'commute'
   | 'music'
-  | 'weather';
+  | 'weather'
+  | 'alerts';
 
 export function HubPage() {
   const [time, setTime] = useState(new Date());
@@ -777,20 +803,33 @@ export function HubPage() {
   /* ── Live Weather ── */
   const { data: weather } = useWeather();
   const pirate = usePirateWeather();
+  const nws = useNWSForecast();
+  const { alerts } = useNWSAlerts();
   const wx = weather?.current;
+  const topAlert = alerts[0] ?? null;
 
-  // Build forecast: use Open-Meteo for temps/codes, overlay Pirate Weather precip when available
-  const forecast = weather?.daily.slice(0, 5).map((d, i) => {
-    const pw = pirate.daily[i];
-    const isSnow = pw ? pw.condition === 'snowy' : d.snowfallSum > 0;
-    // Pirate Weather gives liquid precip — multiply by 10 for snow estimate
-    const snow = pw ? (pw.condition === 'snowy' ? pw.precipitation * 10 : 0) : d.snowfallSum;
-    const rain = pw ? (pw.condition !== 'snowy' ? pw.precipitation : 0) : d.rainSum;
+  // Build forecast: Open-Meteo temps, Pirate Weather conditions, NWS precip amounts
+  // HA weather condition → icon type. Pirate Weather is more accurate than Open-Meteo for daily conditions.
+  const pwCondMap: Record<string, string> = {
+    snowy: 'snow', rainy: 'rain', pouring: 'rain', lightning: 'rain', 'lightning-rainy': 'rain',
+    hail: 'rain', cloudy: 'cloud', partlycloudy: 'cloud', windy: 'cloud', 'windy-variant': 'cloud',
+    fog: 'cloud', exceptional: 'cloud',
+    sunny: 'sun', clear: 'sun', 'clear-night': 'sun',
+  };
+  const forecast = weather?.daily.slice(0, 5).map((d) => {
+    // Match Pirate Weather by date, not index
+    const pw = pirate.daily.find((p) => p.datetime.startsWith(d.date));
+    // NWS snowfall is the authoritative source — fall back to Open-Meteo
+    const nwsDay = nws.daily.find((n) => n.date === d.date);
+    const snow = nwsDay?.snowfall ?? d.snowfallSum;
+    const rain = nwsDay?.rain ?? d.rainSum;
+    // Use Pirate Weather condition when available for that date, otherwise Open-Meteo
+    const t = pw ? (pwCondMap[pw.condition] ?? wmoToType(d.weatherCode)) : wmoToType(d.weatherCode);
     return {
       d: d.day,
       hi: d.hi,
       lo: d.lo,
-      t: isSnow ? 'snow' : wmoToType(d.weatherCode),
+      t,
       snow,
       rain,
     };
@@ -801,9 +840,45 @@ export function HubPage() {
   const wxTemp = wx?.temperature ?? 34;
   const wxHumidity = wx?.humidity ?? 55;
 
+  // Precipitation timing badge from Pirate Weather hourly data
+  const precipBadge = (() => {
+    if (!pirate.available || pirate.hourly.length === 0) return null;
+    const now = new Date();
+    const isCurrentlyPrecip = pirate.precip.condition === 'snowy' || pirate.precip.condition === 'rainy';
+    const type = pirate.precip.condition === 'snowy' ? 'snow' : 'rain';
+
+    if (isCurrentlyPrecip) {
+      // Find when precip stops
+      const stopHour = pirate.hourly.find((h) => {
+        const t = new Date(h.datetime);
+        return t > now && h.condition !== 'snowy' && h.condition !== 'rainy';
+      });
+      if (stopHour) {
+        const mins = Math.round((new Date(stopHour.datetime).getTime() - now.getTime()) / 60000);
+        if (mins < 60) return { type, text: `${type === 'snow' ? 'Snow' : 'Rain'} stops in ~${mins}m` };
+        const hrs = Math.round(mins / 60);
+        return { type, text: `${type === 'snow' ? 'Snow' : 'Rain'} for ~${hrs}h more` };
+      }
+      return { type, text: `${type === 'snow' ? 'Snowing' : 'Raining'} now` };
+    } else {
+      // Find when precip starts
+      const startHour = pirate.hourly.find((h) => {
+        const t = new Date(h.datetime);
+        return t > now && (h.condition === 'snowy' || h.condition === 'rainy');
+      });
+      if (startHour) {
+        const mins = Math.round((new Date(startHour.datetime).getTime() - now.getTime()) / 60000);
+        const startType = startHour.condition === 'snowy' ? 'snow' : 'rain';
+        if (mins < 60) return { type: startType, text: `${startType === 'snow' ? 'Snow' : 'Rain'} in ~${mins}m` };
+        const hrs = Math.round(mins / 60);
+        if (hrs <= 6) return { type: startType, text: `${startType === 'snow' ? 'Snow' : 'Rain'} in ~${hrs}h` };
+      }
+      return null; // No precip expected soon
+    }
+  })();
+
   /* --- Detail page content --- */
-  if (page) {
-    const pages: Record<string, ReactNode> = {
+  const pages: Record<string, ReactNode> = {
       electricity: (
         <DetailPage title="Electricity" icon={IC.zap({ sz: 20, c: C.accent })} onBack={goBack}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -1265,29 +1340,71 @@ export function HubPage() {
           )}
         </DetailPage>
       ),
+      alerts: (
+        <DetailPage title="Weather Alerts" icon={IC.alert({ sz: 20, c: C.red })} onBack={goBack}>
+          {alerts.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {alerts.map((a, i) => {
+                const severityColor = a.severity === 'Extreme' ? '#dc2626' : a.severity === 'Severe' ? C.red : a.severity === 'Moderate' ? C.amber : C.t2;
+                return (
+                  <Glass key={i}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <div
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 8,
+                          background: severityColor,
+                          boxShadow: `0 0 12px ${severityColor}40`,
+                        }}
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: '0.05em' }}>
+                          {a.severity.toUpperCase()}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 800 }}>{a.event}</span>
+                    </div>
+                    {a.headline && (
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.t1, marginBottom: 10, lineHeight: 1.5 }}>
+                        {a.headline}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: C.t2,
+                        lineHeight: 1.6,
+                        whiteSpace: 'pre-wrap',
+                        background: C.well,
+                        padding: 14,
+                        borderRadius: 12,
+                        maxHeight: 300,
+                        overflowY: 'auto',
+                      }}
+                    >
+                      {a.description}
+                    </div>
+                    {a.expires && (
+                      <div style={{ fontSize: 10, color: C.t3, marginTop: 10 }}>
+                        Expires: {new Date(a.expires).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </div>
+                    )}
+                  </Glass>
+                );
+              })}
+              <div style={{ fontSize: 10, color: C.t3, textAlign: 'center' }}>
+                Source: National Weather Service
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', color: C.t2, padding: 40 }}>
+              <div style={{ marginBottom: 8 }}>{IC.shield({ sz: 32, c: C.green })}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.t1 }}>All Clear</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>No active weather alerts for Victoria, MN</div>
+            </div>
+          )}
+        </DetailPage>
+      ),
     };
-
-    return (
-      <div
-        style={{
-          width: '100%',
-          height: '100vh',
-          background: `url(${BG}) center/cover no-repeat`,
-          fontFamily: '"DM Sans",-apple-system,system-ui,sans-serif',
-          color: C.white,
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap"
-          rel="stylesheet"
-        />
-        <style>{`@keyframes fi{from{opacity:0}to{opacity:1}}*{box-sizing:border-box;margin:0;padding:0}button{font-family:inherit}`}</style>
-        {pages[page] || pages.electricity}
-      </div>
-    );
-  }
 
   /* --- Main Grid Layout --- */
   return (
@@ -1310,7 +1427,7 @@ export function HubPage() {
         href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap"
         rel="stylesheet"
       />
-      <style>{`@keyframes fi{from{opacity:0}to{opacity:1}}@keyframes sd{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}*{-webkit-tap-highlight-color:transparent;user-select:none;box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}button{font-family:inherit}button:active{opacity:.85!important}`}</style>
+      <style>{`@keyframes fi{from{opacity:0}to{opacity:1}}@keyframes sd{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}*{-webkit-tap-highlight-color:transparent;user-select:none;box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}button{font-family:inherit}button:active{opacity:.85!important}`}</style>
 
       {/* HEADER */}
       <header
@@ -1346,30 +1463,42 @@ export function HubPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                background: C.red,
-                padding: '6px 12px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                boxShadow: '0 0 12px rgba(248,113,113,0.4)',
-              }}
-            >
-              {IC.alert({ sz: 13, c: '#fff' })}
-              <span
+            {topAlert && (
+              <div
+                onClick={() => setPage('alerts')}
                 style={{
-                  fontSize: 9,
-                  fontWeight: 800,
-                  color: '#fff',
-                  letterSpacing: '0.02em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: topAlert.severity === 'Extreme' ? '#dc2626' : topAlert.severity === 'Severe' ? C.red : C.amber,
+                  padding: '6px 12px',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  boxShadow: topAlert.severity === 'Extreme'
+                    ? '0 0 16px rgba(220,38,38,0.5)'
+                    : '0 0 12px rgba(248,113,113,0.4)',
+                  animation: topAlert.severity === 'Extreme' ? 'pulse 2s ease-in-out infinite' : undefined,
                 }}
+                title={topAlert.headline}
               >
-                Winter Storm Warning
-              </span>
-            </div>
+                {IC.alert({ sz: 13, c: '#fff' })}
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 800,
+                    color: '#fff',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  {topAlert.event}
+                </span>
+                {alerts.length > 1 && (
+                  <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
+                    +{alerts.length - 1}
+                  </span>
+                )}
+              </div>
+            )}
             <Glass
               style={{
                 padding: '7px 14px',
@@ -1533,6 +1662,25 @@ export function HubPage() {
 
       {/* Forecast */}
       <div style={{ gridArea: 'weather', padding: '0 6px 0 10px' }}>
+        {precipBadge && (
+          <Glass
+            style={{
+              marginBottom: 6,
+              padding: '10px 16px',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              background: 'rgba(20,80,70,0.75)',
+              border: `1px solid rgba(45,212,191,0.5)`,
+              boxShadow: '0 0 20px rgba(45,212,191,0.25)',
+              backdropFilter: 'blur(20px)',
+            }}
+          >
+            <WxI t={precipBadge.type} sz={18} />
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#5eead4' }}>{precipBadge.text}</span>
+          </Glass>
+        )}
         <Glass onClick={() => setPage('weather')} style={{ animation: 'float 6s ease-in-out infinite 1s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
             {forecast.map((f) => (
@@ -1910,6 +2058,9 @@ export function HubPage() {
 
       {db === 'press' && <DoorbellPress onClose={closeDb} />}
       {db === 'motion' && <MotionBanner onClose={closeDb} />}
+
+      {/* Detail page modal */}
+      {page && pages[page]}
     </div>
   );
 }

@@ -4,7 +4,9 @@
       "Bash(npx vite:*)",
       "Bash(npx tsc:*)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 http://192.168.4.107:8123/api/)",
-      "Bash(curl -v --connect-timeout 5 http://192.168.4.107:8123/)"
+      "Bash(curl -v --connect-timeout 5 http://192.168.4.107:8123/)",
+      "Bash(curl -s \"https://api.weather.gov/gridpoints/MPX/95,66/forecast\")",
+      "Bash(curl -s \"https://api.weather.gov/gridpoints/MPX/95,66\")"
     ]
   }
 }
