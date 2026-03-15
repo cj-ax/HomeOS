@@ -1,0 +1,59 @@
+.card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  padding: var(--space-lg);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.size-compact {
+  padding: var(--space-md);
+}
+
+.size-large {
+  padding: var(--space-xl);
+}
+
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.interactive:active {
+  background: var(--glass-bg-active);
+}
+
+.fullHeight {
+  height: 100%;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-lg);
+  color: var(--text-secondary);
+}
+
+.title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.body {
+  color: var(--text-secondary);
+}

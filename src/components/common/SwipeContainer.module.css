@@ -1,0 +1,57 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.swiper {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.slide {
+  height: auto;
+  min-height: 100%;
+}
+
+.slideContent {
+  padding: var(--space-lg);
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pagination bar at top */
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  flex-shrink: 0;
+}
+
+.bullet {
+  all: unset;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bullet:hover {
+  color: var(--text-secondary);
+}
+
+.bulletActive {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
