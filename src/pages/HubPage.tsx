@@ -13,6 +13,8 @@ import { useNWSAlerts } from '@/hooks/useNWSAlerts';
 import { useSpotify } from '@/hooks/useSpotify';
 import { useMessages } from '@/hooks/useMessages';
 import { usePlants } from '@/hooks/usePlants';
+import { useCalendar, formatEventTime, formatEventDate, isToday, calendarColor, calendarLabel } from '@/hooks/useCalendar';
+import { useRing } from '@/hooks/useRing';
 
 /* ── Color Constants ── */
 const C = {
@@ -527,16 +529,6 @@ const FORECAST_FALLBACK = [
   { d: 'Mon', hi: 30, lo: 18, t: 'sun' },
   { d: 'Tue', hi: 33, lo: 20, t: 'sun' },
 ];
-const CAMERAS = [
-  { id: 'doorbell', n: 'Doorbell', loc: 'Front Door', motion: false },
-  { id: 'front', n: 'Front Yard', loc: 'Driveway', motion: true },
-  { id: 'backyard', n: 'Backyard', loc: 'Patio', motion: false },
-];
-const EVENTS = [
-  { t: '9:00', title: 'Sprint Review', tag: 'Summit' },
-  { t: '12:30', title: 'Lunch w/ Tyler', tag: undefined },
-  { t: '3:00', title: 'Design Critique', tag: 'Summit' },
-];
 const FAMILY = [
   { name: 'Chris', color: C.accent },
   { name: 'Olivia', color: C.green },
@@ -626,9 +618,59 @@ const DetailPage = ({ title, icon, onBack, children }: DetailPageProps) => (
 );
 
 /* ── Doorbell Press Overlay ── */
-const DoorbellPress = ({ onClose }: { onClose: () => void }) => {
-  const [s, setS] = useState(0);
+/** Play a two-tone doorbell chime via Web Audio API */
+function playDoorbellChime() {
+  try {
+    const ctx = new AudioContext();
+    const playTone = (freq: number, start: number, dur: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur);
+    };
+    // Classic ding-dong: E5 then C5
+    playTone(659, 0, 0.6);
+    playTone(523, 0.5, 0.8);
+  } catch { /* AudioContext not available */ }
+}
 
+const DoorbellPress = ({ onClose, snapshotUrl }: { onClose: () => void; snapshotUrl?: string | null }) => {
+  const [s, setS] = useState(0);
+  const [imgSrc, setImgSrc] = useState<string | null>(snapshotUrl ?? null);
+
+  // Play doorbell chime on mount
+  useEffect(() => {
+    playDoorbellChime();
+  }, []);
+
+  // Refresh snapshot every 5 seconds
+  useEffect(() => {
+    if (!snapshotUrl) return;
+    const i = setInterval(async () => {
+      try {
+        const token = import.meta.env.VITE_HA_TOKEN ?? '';
+        const resp = await fetch('/ha-api/camera_proxy/camera.front_door_live_view', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          setImgSrc((prev) => {
+            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
+            return URL.createObjectURL(blob);
+          });
+        }
+      } catch { /* ignore */ }
+    }, 5000);
+    return () => clearInterval(i);
+  }, [snapshotUrl]);
+
+  // Auto-dismiss countdown
   useEffect(() => {
     const i = setInterval(() => {
       setS((v) => {
@@ -656,22 +698,28 @@ const DoorbellPress = ({ onClose }: { onClose: () => void }) => {
         animation: 'fi .2s ease',
       }}
     >
-      <div style={{ width: 400 }}>
+      <div style={{ width: 'min(520px, 85vw)' }}>
         <Glass style={{ padding: 0 }}>
           <div
             style={{
-              height: 200,
+              height: 300,
               background:
                 'linear-gradient(180deg,rgba(22,27,36,0.9),rgba(10,15,20,0.95))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
+              overflow: 'hidden',
+              borderRadius: `${C.r}px ${C.r}px 0 0`,
             }}
           >
-            <div style={{ opacity: 0.12, textAlign: 'center' }}>
-              {IC.cam({ sz: 48, c: C.white })}
-            </div>
+            {imgSrc ? (
+              <img src={imgSrc} alt="Front Door" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ opacity: 0.12, textAlign: 'center' }}>
+                {IC.cam({ sz: 48, c: C.white })}
+              </div>
+            )}
             <div
               style={{
                 position: 'absolute',
@@ -787,7 +835,7 @@ const DoorbellPress = ({ onClose }: { onClose: () => void }) => {
 };
 
 /* ── Motion Banner ── */
-const MotionBanner = ({ onClose }: { onClose: () => void }) => {
+const MotionBanner = ({ onClose, camera }: { onClose: () => void; camera?: string }) => {
   useEffect(() => {
     const t = setTimeout(onClose, 8000);
     return () => clearTimeout(t);
@@ -829,7 +877,7 @@ const MotionBanner = ({ onClose }: { onClose: () => void }) => {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Motion Detected</div>
-          <div style={{ fontSize: 10, color: C.t1 }}>Front Yard Camera</div>
+          <div style={{ fontSize: 10, color: C.t1 }}>{camera ?? 'Camera'}</div>
         </div>
         <button
           onClick={onClose}
@@ -863,6 +911,9 @@ export function HubPage() {
   const sp = useSpotify();
   const msgs = useMessages();
   const { plants, water: waterPlant, setWateredDate } = usePlants();
+  const { events: calEvents } = useCalendar();
+  const ring = useRing();
+  const [expandedCam, setExpandedCam] = useState<string | null>(null);
   const urgentPlant = [...plants].sort((a, b) => a.daysUntil - b.daysUntil)[0] ?? null;
   const [plantUndo, setPlantUndo] = useState<Record<string, string>>({}); // entityId → previous ISO state
   const [spPos, setSpPos] = useState(0);
@@ -1051,94 +1102,164 @@ export function HubPage() {
           </div>
         </DetailPage>
       ),
-      cameras: (
-        <DetailPage title="Ring Cameras" icon={IC.cam({ sz: 20, c: C.accent })} onBack={goBack}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            {CAMERAS.map((cam) => (
-              <Glass key={cam.id} style={{ padding: 0 }}>
+      cameras: (() => {
+        const expanded = expandedCam ? ring.cameras.find((c) => c.id === expandedCam) : null;
+        return (
+          <DetailPage
+            title={expanded ? expanded.name : 'Ring Cameras'}
+            icon={IC.cam({ sz: 20, c: C.accent })}
+            onBack={() => { if (expandedCam) setExpandedCam(null); else goBack(); }}
+          >
+            {expanded ? (
+              <div>
                 <div
                   style={{
-                    height: 140,
-                    background:
-                      'linear-gradient(135deg,rgba(22,27,36,0.95),rgba(14,18,24,0.95))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    width: '100%',
+                    aspectRatio: '16/9',
+                    background: 'linear-gradient(135deg,rgba(22,27,36,0.95),rgba(14,18,24,0.95))',
+                    borderRadius: C.r,
+                    overflow: 'hidden',
                     position: 'relative',
-                    borderRadius: `${C.r}px ${C.r}px 0 0`,
                   }}
                 >
-                  {IC.cam({ sz: 28, c: C.t3 })}
-                  {cam.motion && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        left: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        background: `${C.amber}20`,
-                        padding: '2px 8px',
-                        borderRadius: 6,
-                      }}
-                    >
-                      <Dot color={C.amber} sz={4} />
-                      <span style={{ fontSize: 8, fontWeight: 700, color: C.amber }}>MOTION</span>
+                  {expanded.snapshotUrl ? (
+                    <img src={expanded.snapshotUrl} alt={expanded.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      {IC.cam({ sz: 48, c: C.t3 })}
                     </div>
                   )}
-                  <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                    <Dot color={C.green} sz={6} />
-                  </div>
+                  {expanded.motionDetected && (
+                    <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', alignItems: 'center', gap: 6, background: `${C.amber}20`, padding: '4px 10px', borderRadius: 8 }}>
+                      <Dot color={C.amber} sz={6} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.amber }}>MOTION</span>
+                    </div>
+                  )}
+                  {expanded.isDoorbell && (
+                    <div style={{ position: 'absolute', bottom: 12, left: 12 }}>
+                      {IC.bell({ sz: 18, c: C.accent })}
+                    </div>
+                  )}
                 </div>
-                <div style={{ padding: '10px 14px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700 }}>{cam.n}</div>
-                  <div style={{ fontSize: 9, color: C.t2, marginTop: 1 }}>{cam.loc}</div>
-                </div>
-              </Glass>
-            ))}
-          </div>
-        </DetailPage>
-      ),
-      calendar: (
-        <DetailPage title="Schedule" icon={IC.cal({ sz: 20, c: C.purple })} onBack={goBack}>
-          <Glass>
-            {EVENTS.map((e, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  padding: '10px 0',
-                  borderBottom:
-                    i < EVENTS.length - 1 ? `1px solid ${C.border}` : 'none',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.t1,
-                    fontVariantNumeric: 'tabular-nums',
-                    width: 48,
-                    flexShrink: 0,
-                  }}
-                >
-                  {e.t}
-                </span>
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</span>
-                  {e.tag && (
-                    <span style={{ marginLeft: 6 }}>
-                      <Pill color={C.purple}>{e.tag}</Pill>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 11, color: C.t2 }}>
+                  <span>{expanded.location}</span>
+                  {expanded.battery !== null && (
+                    <span style={{ color: expanded.battery < 20 ? C.red : C.t2 }}>
+                      Battery: {expanded.battery}%
                     </span>
                   )}
                 </div>
+                <div style={{ fontSize: 10, color: C.t3, marginTop: 4 }}>
+                  Last activity: {expanded.lastActivity}
+                </div>
               </div>
-            ))}
-          </Glass>
-        </DetailPage>
-      ),
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {ring.cameras.map((cam) => (
+                  <Glass key={cam.id} style={{ padding: 0, cursor: 'pointer' }} onClick={() => setExpandedCam(cam.id)}>
+                    <div
+                      style={{
+                        height: 160,
+                        background: 'linear-gradient(135deg,rgba(22,27,36,0.95),rgba(14,18,24,0.95))',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        borderRadius: `${C.r}px ${C.r}px 0 0`,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {cam.snapshotUrl ? (
+                        <img src={cam.snapshotUrl} alt={cam.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        IC.cam({ sz: 28, c: C.t3 })
+                      )}
+                      {cam.motionDetected && (
+                        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 4, background: `${C.amber}20`, padding: '2px 8px', borderRadius: 6 }}>
+                          <Dot color={C.amber} sz={4} />
+                          <span style={{ fontSize: 8, fontWeight: 700, color: C.amber }}>MOTION</span>
+                        </div>
+                      )}
+                      <div style={{ position: 'absolute', top: 8, right: 8 }}>
+                        <Dot color={C.green} sz={6} />
+                      </div>
+                      {cam.isDoorbell && (
+                        <div style={{ position: 'absolute', bottom: 8, left: 8 }}>
+                          {IC.bell({ sz: 14, c: C.accent })}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '10px 14px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700 }}>{cam.name}</div>
+                      <div style={{ fontSize: 9, color: C.t2, marginTop: 1 }}>{cam.location}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                        {cam.battery !== null && (
+                          <span style={{ fontSize: 9, color: cam.battery < 20 ? C.red : C.t2 }}>
+                            Battery: {cam.battery}%
+                          </span>
+                        )}
+                        <span style={{ fontSize: 9, color: C.t2 }}>
+                          Last: {cam.lastActivity}
+                        </span>
+                      </div>
+                    </div>
+                  </Glass>
+                ))}
+              </div>
+            )}
+          </DetailPage>
+        );
+      })(),
+      calendar: (() => {
+        const todayEvents = calEvents.filter(isToday);
+        const upcomingEvents = calEvents.filter((e) => !isToday(e));
+        return (
+          <DetailPage title="Schedule" icon={IC.cal({ sz: 20, c: C.purple })} onBack={goBack}>
+            {/* Today */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.t2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Today</div>
+            <Glass>
+              {todayEvents.length === 0 ? (
+                <div style={{ padding: '12px 0', color: C.t2, fontSize: 13 }}>No events today</div>
+              ) : (
+                todayEvents.map((e, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < todayEvents.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.t1, fontVariantNumeric: 'tabular-nums', width: 56, flexShrink: 0 }}>
+                      {formatEventTime(e)}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{e.summary}</span>
+                      <span style={{ marginLeft: 6 }}><Pill color={calendarColor(e.calendar)}>{calendarLabel(e.calendar)}</Pill></span>
+                      {e.location && <div style={{ fontSize: 11, color: C.t2, marginTop: 2 }}>{e.location}</div>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </Glass>
+
+            {/* Upcoming */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.t2, textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 6 }}>Upcoming</div>
+            <Glass>
+              {upcomingEvents.length === 0 ? (
+                <div style={{ padding: '12px 0', color: C.t2, fontSize: 13 }}>Nothing this week</div>
+              ) : (
+                upcomingEvents.map((e, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: i < upcomingEvents.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ width: 80, flexShrink: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.accent }}>{formatEventDate(e)}</div>
+                      <div style={{ fontSize: 11, color: C.t2 }}>{formatEventTime(e)}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{e.summary}</span>
+                      <span style={{ marginLeft: 6 }}><Pill color={calendarColor(e.calendar)}>{calendarLabel(e.calendar)}</Pill></span>
+                      {e.location && <div style={{ fontSize: 11, color: C.t2, marginTop: 2 }}>{e.location}</div>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </Glass>
+          </DetailPage>
+        );
+      })(),
       plants: (
         <DetailPage title="Plant Care" icon={IC.leaf({ sz: 20, c: C.green })} onBack={goBack}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2172,12 +2293,12 @@ export function HubPage() {
             icon={IC.cam({ sz: 13, c: C.accent })}
             label="Cameras"
             summary={
-              CAMERAS.some(c => c.motion)
-                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={C.amber} sz={5} />Motion — {CAMERAS.find(c => c.motion)!.n}</span>
-                : `${CAMERAS.length} Online`
+              ring.anyMotion && ring.motionCamera
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={C.amber} sz={5} />Motion — {ring.motionCamera.name}</span>
+                : `${ring.onlineCount} Online`
             }
-            accent={CAMERAS.some(c => c.motion) ? C.amber : C.green}
-            onClick={() => setPage('cameras')}
+            accent={ring.anyMotion ? C.amber : C.green}
+            onClick={() => { ring.refreshSnapshots(true); setPage('cameras'); }}
           />
           <CompactRow
             icon={IC.leaf({ sz: 13, c: C.green })}
@@ -2197,11 +2318,13 @@ export function HubPage() {
           <CompactRow
             icon={IC.cal({ sz: 13, c: C.purple })}
             label="Schedule"
-            summary={
-              EVENTS.length > 0
-                ? <><span style={{ color: C.t2 }}>{EVENTS[0].t}</span> {EVENTS[0].title}</>
-                : 'No events'
-            }
+            summary={(() => {
+              const todayEv = calEvents.find(isToday);
+              if (todayEv) return <><span style={{ color: C.t2 }}>{formatEventTime(todayEv)}</span> {todayEv.summary}</>;
+              const nextEv = calEvents[0];
+              if (nextEv) return <><span style={{ color: C.t2 }}>{formatEventDate(nextEv)}</span> {nextEv.summary}</>;
+              return 'No events';
+            })()}
             onClick={() => setPage('calendar')}
           />
           <CompactRow
@@ -2334,8 +2457,8 @@ export function HubPage() {
         </div>
       </aside>
 
-      {db === 'press' && <DoorbellPress onClose={closeDb} />}
-      {db === 'motion' && <MotionBanner onClose={closeDb} />}
+      {(db === 'press' || ring.doorbellPressed) && <DoorbellPress onClose={() => { closeDb(); ring.dismissDoorbell(); }} snapshotUrl={ring.cameras[0]?.snapshotUrl} />}
+      {(db === 'motion' || ring.motionAlert) && <MotionBanner onClose={() => { closeDb(); ring.dismissMotion(); }} camera={ring.motionAlert ?? undefined} />}
 
       {/* Detail page modal */}
       {page && pages[page]}

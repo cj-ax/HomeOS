@@ -11,5 +11,12 @@ export default defineConfig({
   },
   server: {
     host: true,
+    proxy: {
+      '/ha-api': {
+        target: 'http://192.168.4.107:8123',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/ha-api/, '/api'),
+      },
+    },
   },
 });
