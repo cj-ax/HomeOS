@@ -135,7 +135,7 @@ The hub uses a CSS Grid layout: `"header header" "hero sidebar" "family sidebar"
 
 - **Doorbell press**: Full-screen glassmorphism overlay with camera placeholder, Dismiss + Open Ring buttons, 30s countdown timer
 - **Motion detected**: Top banner notification (floating Glass card), non-blocking, auto-dismiss after 8s
-- This is NOT a live video stream — will integrate HA camera proxy snapshot later
+- This is NOT a live video stream — entity_picture snapshots only. Live video requires go2rtc (future)
 
 ---
 
@@ -184,11 +184,11 @@ The hub uses a CSS Grid layout: `"header header" "hero sidebar" "family sidebar"
 - [ ] Electricity widget → HA energy sensor
 - [ ] Gas widget → HA gas sensor
 - [ ] Water widget → HA water sensor
-- [ ] Calendar widget → Google Calendar via HA
+- [x] Calendar widget → Google Calendar via HA REST API, 3 calendars
 - [ ] Commute widget → Google Maps API via HA sensor
-- [ ] Ring cameras → HA camera entities + motion events
+- [x] Ring cameras → 4 cameras (2 accounts), entity_picture snapshots, doorbell/motion overlays
 - [ ] Plants → HA soil moisture sensors
-- [ ] Spotify → HA media_player entity
+- [x] Spotify → HA media_player entity, browse/play/device switching
 
 ### Phase 4: Security Features
 
@@ -267,7 +267,9 @@ home-os/
 │   │   └── HomeAssistantContext.tsx  ← HA connection provider
 │   ├── hooks/
 │   │   ├── useHomeAssistant.ts  ← Hook to access HA context
-│   │   └── useEntity.ts        ← Subscribe to a single HA entity
+│   │   ├── useEntity.ts        ← Subscribe to a single HA entity
+│   │   ├── useCalendar.ts      ← Google Calendar via HA REST API
+│   │   └── useRing.ts          ← Ring cameras (4), snapshots, doorbell/motion events
 │   ├── assets/
 │   │   ├── bg.txt               ← Base64 background image
 │   │   └── bg.ts                ← Background image export
