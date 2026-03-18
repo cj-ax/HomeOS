@@ -204,28 +204,52 @@ The hub uses a CSS Grid layout: `"header header" "hero sidebar" "family sidebar"
 - [ ] Bedtime lock toggles
 - [ ] Bill tracking from IMAP scraper entities
 
-### Phase 9: Kid Dashboard — Age 11 (Emma)
+### Phase 9: Kid Dashboard — Age 11 (Remi)
 
-- [ ] Spotify integration (own account)
-- [ ] Chore list with streak counter
-- [ ] Calendar/homework reminders
-- [ ] Weather card
-- [ ] One-tap message to parent
+- [x] UI shell with glassmorphism layout (mock data)
+- [x] Morning greeting with smart daily tips
+- [x] Weather card (5-day forecast)
+- [x] Calendar/schedule view
+- [x] Chore list with streak counter + points
+- [x] Family leaderboard (all 3 kids)
+- [x] Spotify player (mock — needs own account wiring)
+- [x] One-tap message to parent
+- [x] Parent broadcast overlay (full-screen, must acknowledge)
+- [ ] Wire Spotify to own account + Google Home Mini
+- [ ] Wire weather to live HA data
+- [ ] Wire calendar to HA REST API
+- [ ] Wire chores to HA input_boolean + counter entities
 
-### Phase 10: Kid Dashboard — Age 9 (Jake)
+### Phase 10: Kid Dashboard — Age 9 (Desmond)
 
-- [ ] Chore list with points system
-- [ ] Family leaderboard
-- [ ] Countdown timers to events
-- [ ] Spotify card
-- [ ] One-tap messaging
+- [x] UI shell with gamified layout (mock data)
+- [x] Morning greeting with smart daily tips
+- [x] Weather card (5-day forecast)
+- [x] Chore list as "Quest Log" with XP points + emoji
+- [x] Family leaderboard with crown for #1
+- [x] Countdown timers to upcoming events
+- [x] Reminders (simplified calendar)
+- [x] Spotify player (mock — needs own account wiring)
+- [x] One-tap message to parent
+- [x] Parent broadcast overlay (full-screen, must acknowledge)
+- [ ] Wire Spotify to own account + Google Home Mini
+- [ ] Wire weather to live HA data
+- [ ] Wire chores to HA input_boolean + counter entities
 
-### Phase 11: Kid Dashboard — Age 7 (Youngest)
+### Phase 11: Kid Dashboard — Age 7 (Merit)
 
-- [ ] Giant icon buttons (Music, Chores, Call Mom/Dad, Bedtime)
-- [ ] Bedtime color countdown (green → yellow → red)
-- [ ] Album art Spotify with big play/pause
-- [ ] Morning greeting screen (time-triggered)
+- [x] UI shell with giant buttons (64px+ touch targets, mock data)
+- [x] Morning greeting with daily tips
+- [x] Giant button navigation (Chores, Music → sub-views)
+- [x] Chore sub-view with big checkboxes + emoji
+- [x] Music sub-view with large album art + controls
+- [x] Bedtime color countdown (green → yellow → red)
+- [x] Mini weather + reminders + leaderboard on home
+- [x] One-tap message to parent
+- [x] Parent broadcast overlay (full-screen, must acknowledge)
+- [ ] Wire Spotify to own account + Google Home Mini
+- [ ] Wire weather to live HA data
+- [ ] Wire chores to HA input_boolean + counter entities
 
 ### Phase 12: Inter-Screen Communication
 
@@ -281,9 +305,9 @@ home-os/
 │   │   └── doorbell/            ← Doorbell overlay (future)
 │   ├── pages/
 │   │   ├── HubPage.tsx          ← Main hub (grid widget dashboard + detail pages)
-│   │   ├── EmmaPage.tsx         ← Age 11 dashboard
-│   │   ├── JakePage.tsx         ← Age 9 dashboard
-│   │   └── YoungestPage.tsx     ← Age 7 dashboard
+│   │   ├── RemiPage.tsx          ← Age 11 dashboard
+│   │   ├── DesmondPage.tsx      ← Age 9 dashboard
+│   │   └── MeritPage.tsx         ← Age 7 dashboard
 │   ├── styles/
 │   │   ├── globals.css          ← CSS custom properties, resets
 │   │   └── theme.ts             ← Theme constants for JS usage
