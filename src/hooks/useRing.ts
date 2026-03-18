@@ -4,7 +4,7 @@
  * Subscribes to camera, motion, doorbell, and battery entities
  * for four Ring cameras: Front Door (doorbell), Front Door Exterior,
  * Backyard, and Front of House.
- * Fetches camera snapshots via HA REST API with Bearer auth.
+ * Uses entity_picture attribute from camera entities for snapshots.
  */
 
 import { useEffect, useCallback, useRef, useState } from 'react';
@@ -25,65 +25,33 @@ export interface RingCamera {
   snapshotUrl: string | null;
 }
 
+const HA_BASE = 'http://192.168.4.107:8123';
 const HA_TOKEN = import.meta.env.VITE_HA_TOKEN ?? '';
 
-const CAMERA_ENTITIES = [
-  { id: 'front_door', entity: 'camera.front_door_live_view' },
-  { id: 'front_door_exterior', entity: 'camera.front_door_live_view_2' },
-  { id: 'backyard', entity: 'camera.backyard_live_view' },
-  { id: 'front_of_house', entity: 'camera.front_of_house_live_view' },
-];
-
-/** Request HA to pull a fresh snapshot from the camera */
-async function requestFreshSnapshot(cameraEntity: string): Promise<void> {
-  try {
-    // Try update_entity first (forces HA to re-poll the camera)
-    await fetch('/ha-api/services/homeassistant/update_entity', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${HA_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ entity_id: cameraEntity }),
-    });
-  } catch {
-    // ignore — best-effort wake
-  }
-}
-
-/** Fetch a camera snapshot as a blob URL */
-async function fetchSnapshot(cameraEntity: string, wake = false): Promise<string | null> {
-  try {
-    if (wake) {
-      await requestFreshSnapshot(cameraEntity);
-      // Give Ring a moment to respond with a new frame
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    const resp = await fetch(`/ha-api/camera_proxy/${cameraEntity}?t=${Date.now()}`, {
-      headers: { Authorization: `Bearer ${HA_TOKEN}` },
-      cache: 'no-store',
-    });
-    if (!resp.ok) return null;
-    const blob = await resp.blob();
-    return URL.createObjectURL(blob);
-  } catch {
-    return null;
-  }
+/** Build an authenticated snapshot URL from entity_picture path */
+function makeSnapshotUrl(entityPicturePath: string | undefined): string | null {
+  if (!entityPicturePath) return null;
+  const sep = entityPicturePath.includes('?') ? '&' : '?';
+  return `${HA_BASE}${entityPicturePath}${sep}token=${HA_TOKEN}`;
 }
 
 export function useRing() {
   const { connection } = useHomeAssistant();
 
+  // Camera entities (for entity_picture snapshot URLs)
+  const cam1 = useEntity('camera.front_door_live_view');
+  const cam2 = useEntity('camera.front_door_live_view_2');
+  const cam3 = useEntity('camera.backyard_live_view');
+  const cam4 = useEntity('camera.front_of_house_live_view');
+
   // Camera 1: Front Door (doorbell)
   const motion1 = useEntity('event.front_door_motion');
-  const ding1 = useEntity('event.front_door_ding');
   const battery1 = useEntity('sensor.front_door_battery');
   const lastActivity1 = useEntity('sensor.front_door_last_activity');
   const motionSwitch1 = useEntity('switch.front_door_motion_detection');
 
   // Camera 2: Front Door Exterior
   const motion2 = useEntity('event.front_door_motion_2');
-  const ding2 = useEntity('event.front_door_ding_2');
   const battery2 = useEntity('sensor.front_door_battery_2');
   const lastActivity2 = useEntity('sensor.front_door_last_activity_2');
   const motionSwitch2 = useEntity('switch.front_door_motion_detection_2');
@@ -105,40 +73,6 @@ export function useRing() {
   // Track doorbell/motion events for overlay triggers
   const [doorbellPressed, setDoorbellPressed] = useState(false);
   const [motionAlert, setMotionAlert] = useState<string | null>(null);
-
-  // Camera snapshots as blob URLs
-  const [snapshots, setSnapshots] = useState<Record<string, string | null>>({});
-  const snapshotInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const snapshotsRef = useRef<Record<string, string | null>>({});
-
-  const refreshSnapshots = useCallback(async (wake = false) => {
-    const results: Record<string, string | null> = {};
-    // Fetch all cameras in parallel
-    const entries = await Promise.all(
-      CAMERA_ENTITIES.map(async (cam) => [cam.id, await fetchSnapshot(cam.entity, wake)] as const)
-    );
-    for (const [id, url] of entries) {
-      results[id] = url;
-    }
-    // Revoke old blob URLs
-    Object.values(snapshotsRef.current).forEach((url) => {
-      if (url) URL.revokeObjectURL(url);
-    });
-    snapshotsRef.current = results;
-    setSnapshots(results);
-  }, []);
-
-  // Fetch snapshots on mount and every 30 seconds
-  useEffect(() => {
-    if (!connection) return;
-
-    refreshSnapshots();
-    snapshotInterval.current = setInterval(refreshSnapshots, 30000);
-
-    return () => {
-      if (snapshotInterval.current) clearInterval(snapshotInterval.current);
-    };
-  }, [connection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to real-time ring events
   useEffect(() => {
@@ -196,7 +130,7 @@ export function useRing() {
         : null,
       battery: battery1 ? Number(battery1.state) : null,
       lastActivity: lastActivity1?.state ?? 'Unknown',
-      snapshotUrl: snapshots['front_door'] ?? null,
+      snapshotUrl: makeSnapshotUrl(cam1?.attributes?.entity_picture as string | undefined),
     },
     {
       id: 'front_door_exterior',
@@ -210,7 +144,7 @@ export function useRing() {
         : null,
       battery: battery2 ? Number(battery2.state) : null,
       lastActivity: lastActivity2?.state ?? 'Unknown',
-      snapshotUrl: snapshots['front_door_exterior'] ?? null,
+      snapshotUrl: makeSnapshotUrl(cam2?.attributes?.entity_picture as string | undefined),
     },
     {
       id: 'backyard',
@@ -222,7 +156,7 @@ export function useRing() {
       motionDetectedAt: null,
       battery: battery3 ? Number(battery3.state) : null,
       lastActivity: lastActivity3?.state ?? 'Unknown',
-      snapshotUrl: snapshots['backyard'] ?? null,
+      snapshotUrl: makeSnapshotUrl(cam3?.attributes?.entity_picture as string | undefined),
     },
     {
       id: 'front_of_house',
@@ -234,7 +168,7 @@ export function useRing() {
       motionDetectedAt: null,
       battery: battery4 ? Number(battery4.state) : null,
       lastActivity: lastActivity4?.state ?? 'Unknown',
-      snapshotUrl: snapshots['front_of_house'] ?? null,
+      snapshotUrl: makeSnapshotUrl(cam4?.attributes?.entity_picture as string | undefined),
     },
   ];
 
@@ -254,6 +188,5 @@ export function useRing() {
     motionAlert,
     dismissDoorbell,
     dismissMotion,
-    refreshSnapshots,
   };
 }

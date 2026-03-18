@@ -649,25 +649,9 @@ const DoorbellPress = ({ onClose, snapshotUrl }: { onClose: () => void; snapshot
     playDoorbellChime();
   }, []);
 
-  // Refresh snapshot every 5 seconds
+  // Keep snapshot in sync with prop
   useEffect(() => {
-    if (!snapshotUrl) return;
-    const i = setInterval(async () => {
-      try {
-        const token = import.meta.env.VITE_HA_TOKEN ?? '';
-        const resp = await fetch('/ha-api/camera_proxy/camera.front_door_live_view', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (resp.ok) {
-          const blob = await resp.blob();
-          setImgSrc((prev) => {
-            if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev);
-            return URL.createObjectURL(blob);
-          });
-        }
-      } catch { /* ignore */ }
-    }, 5000);
-    return () => clearInterval(i);
+    if (snapshotUrl) setImgSrc(snapshotUrl);
   }, [snapshotUrl]);
 
   // Auto-dismiss countdown
@@ -2298,7 +2282,7 @@ export function HubPage() {
                 : `${ring.onlineCount} Online`
             }
             accent={ring.anyMotion ? C.amber : C.green}
-            onClick={() => { ring.refreshSnapshots(true); setPage('cameras'); }}
+            onClick={() => setPage('cameras')}
           />
           <CompactRow
             icon={IC.leaf({ sz: 13, c: C.green })}
