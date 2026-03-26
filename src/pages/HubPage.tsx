@@ -15,6 +15,8 @@ import { useMessages } from '@/hooks/useMessages';
 import { usePlants } from '@/hooks/usePlants';
 import { useCalendar, formatEventTime, formatEventDate, isToday, calendarColor, calendarLabel } from '@/hooks/useCalendar';
 import { useRing } from '@/hooks/useRing';
+import { useMealPlan, getNextMeal, getTodayMeals, formatDayShort, mealTypeColor, mealTypeLabel } from '@/hooks/useMealPlan';
+import type { Meal, MealDay } from '@/hooks/useMealPlan';
 
 /* ── Color Constants ── */
 const C = {
@@ -886,7 +888,8 @@ type PageId =
   | 'commute'
   | 'music'
   | 'weather'
-  | 'alerts';
+  | 'alerts'
+  | 'meals';
 
 export function HubPage() {
   const [time, setTime] = useState(new Date());
@@ -897,6 +900,8 @@ export function HubPage() {
   const { plants, water: waterPlant, setWateredDate } = usePlants();
   const { events: calEvents } = useCalendar();
   const ring = useRing();
+  const { plan: mealPlan } = useMealPlan();
+  const [selectedRecipe, setSelectedRecipe] = useState<{ meal: Meal; dayLabel: string } | null>(null);
   const [expandedCam, setExpandedCam] = useState<string | null>(null);
   const urgentPlant = [...plants].sort((a, b) => a.daysUntil - b.daysUntil)[0] ?? null;
   const [plantUndo, setPlantUndo] = useState<Record<string, string>>({}); // entityId → previous ISO state
@@ -927,7 +932,7 @@ export function HubPage() {
     minute: '2-digit',
     hour12: false,
   });
-  const goBack = useCallback(() => setPage(null), []);
+  const goBack = useCallback(() => { setPage(null); setSelectedRecipe(null); }, []);
 
   /* ── Live Weather ── */
   const { data: weather } = useWeather();
@@ -1886,6 +1891,278 @@ export function HubPage() {
           )}
         </DetailPage>
       ),
+      meals: (() => {
+        // Recipe drill-down view
+        if (selectedRecipe) {
+          const { meal, dayLabel } = selectedRecipe;
+          return (
+            <DetailPage
+              title={meal.name}
+              icon={<Sv sz={20} c="#fb923c"><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>}
+              onBack={() => setSelectedRecipe(null)}
+            >
+              {/* Header info */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                <Pill color={mealTypeColor(meal.type)}>{mealTypeLabel(meal.type)}</Pill>
+                <Pill color={C.t2}>{dayLabel}</Pill>
+                {meal.time && <Pill color={C.t2}>{meal.time}</Pill>}
+                {meal.onHand && <Pill color={C.green}>All on hand</Pill>}
+              </div>
+
+              {/* Description */}
+              {meal.description && (
+                <Glass style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, color: C.t1, lineHeight: 1.6 }}>{meal.description}</div>
+                  {meal.leftoverNote && (
+                    <div style={{ fontSize: 11, color: C.amber, marginTop: 8, fontWeight: 600 }}>
+                      Leftover tip: {meal.leftoverNote}
+                    </div>
+                  )}
+                </Glass>
+              )}
+
+              {/* Ingredients */}
+              {meal.ingredients.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.t2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                    Ingredients
+                  </div>
+                  <Glass style={{ marginBottom: 12 }}>
+                    {meal.ingredients.map((ing, i) => {
+                      const needsBuy = ing.includes('BUY');
+                      return (
+                        <div
+                          key={i}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 0',
+                            borderBottom: i < meal.ingredients.length - 1 ? `1px solid ${C.border}` : 'none',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: 3,
+                              background: needsBuy ? C.amber : C.green,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ fontSize: 12, color: needsBuy ? C.t1 : C.t2 }}>
+                            {ing.replace(' (BUY)', '').replace(' (on hand)', '')}
+                          </span>
+                          {needsBuy && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: C.amber, marginLeft: 'auto' }}>BUY</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </Glass>
+                </>
+              )}
+
+              {/* Steps */}
+              {meal.steps.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.t2, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                    Steps
+                  </div>
+                  <Glass>
+                    {meal.steps.map((step, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          padding: '8px 0',
+                          borderBottom: i < meal.steps.length - 1 ? `1px solid ${C.border}` : 'none',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 10,
+                            background: 'rgba(251,146,60,0.15)',
+                            color: '#fb923c',
+                            fontSize: 10,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: 1,
+                          }}
+                        >
+                          {i + 1}
+                        </div>
+                        <span style={{ fontSize: 12, color: C.t1, lineHeight: 1.5 }}>{step}</span>
+                      </div>
+                    ))}
+                  </Glass>
+                </>
+              )}
+
+              {/* Toppings bar (for hot dogs etc) */}
+              {meal.toppings && meal.toppings.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.t2, textTransform: 'uppercase', letterSpacing: 1, marginTop: 12, marginBottom: 6 }}>
+                    Toppings Bar
+                  </div>
+                  <Glass>
+                    {meal.toppings.map((t, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: '8px 0',
+                          borderBottom: i < (meal.toppings?.length ?? 0) - 1 ? `1px solid ${C.border}` : 'none',
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#fb923c' }}>{t.name}</div>
+                        <div style={{ fontSize: 11, color: C.t2, marginTop: 2 }}>{t.items}</div>
+                      </div>
+                    ))}
+                  </Glass>
+                </>
+              )}
+            </DetailPage>
+          );
+        }
+
+        // Weekly meal plan overview
+        return (
+          <DetailPage
+            title="Meal Plan"
+            icon={<Sv sz={20} c="#fb923c"><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>}
+            onBack={goBack}
+          >
+            {mealPlan ? (
+              <>
+                <div style={{ fontSize: 11, color: C.t2, marginBottom: 12 }}>
+                  Week of {mealPlan.week}
+                </div>
+                {mealPlan.days.map((day, di) => {
+                  const isCurrentDay = (() => {
+                    const now = new Date();
+                    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                    return day.date === todayStr;
+                  })();
+
+                  return (
+                    <div key={di} style={{ marginBottom: 16 }}>
+                      {/* Day header */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                      }}>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: isCurrentDay ? '#fb923c' : C.t1,
+                        }}>
+                          {day.label}
+                        </div>
+                        {isCurrentDay && <Pill color="#fb923c">Today</Pill>}
+                        {day.note && (
+                          <span style={{ fontSize: 10, color: C.t3, fontStyle: 'italic' }}>
+                            {day.note.length > 50 ? day.note.slice(0, 50) + '…' : day.note}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Meals for the day */}
+                      <Glass style={{ padding: 0 }}>
+                        {day.meals.map((meal, mi) => (
+                          <div
+                            key={mi}
+                            onClick={() => {
+                              if (!meal.special || meal.steps.length > 0) {
+                                setSelectedRecipe({ meal, dayLabel: day.label });
+                              }
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '10px 14px',
+                              borderBottom: mi < day.meals.length - 1 ? `1px solid ${C.border}` : 'none',
+                              cursor: meal.special && meal.steps.length === 0 ? 'default' : 'pointer',
+                            }}
+                          >
+                            {/* Meal type indicator dot */}
+                            <div style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: 4,
+                              background: mealTypeColor(meal.type),
+                              flexShrink: 0,
+                            }} />
+
+                            {/* Meal type label */}
+                            <div style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: mealTypeColor(meal.type),
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              width: 40,
+                              flexShrink: 0,
+                            }}>
+                              {mealTypeLabel(meal.type)}
+                            </div>
+
+                            {/* Meal name */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.t1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {meal.emoji ? `${meal.emoji} ` : ''}{meal.name}
+                              </div>
+                            </div>
+
+                            {/* Time & status badges */}
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                              {meal.time && (
+                                <span style={{ fontSize: 9, color: C.t3, fontWeight: 600 }}>{meal.time}</span>
+                              )}
+                              {meal.onHand && (
+                                <div style={{
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: 3,
+                                  background: C.green,
+                                }} />
+                              )}
+                            </div>
+
+                            {/* Chevron for clickable meals */}
+                            {(!meal.special || meal.steps.length > 0) && <ChevR sz={10} c={C.t3} />}
+                          </div>
+                        ))}
+                      </Glass>
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: C.t2, padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🍽️</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.t1 }}>No Meal Plan</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}>A new plan will appear here Sunday evening</div>
+              </div>
+            )}
+          </DetailPage>
+        );
+      })(),
     };
 
   /* --- Main Grid Layout --- */
@@ -1900,9 +2177,12 @@ export function HubPage() {
         position: 'relative',
         overflow: 'hidden',
         display: 'grid',
-        gridTemplateColumns: '220px 1fr 280px',
-        gridTemplateRows: 'auto 1fr auto auto auto',
-        gridTemplateAreas: '"header header header" "utils hero sidebar" "weather hero sidebar" "commute hero sidebar" "family family family"',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateRows: 'auto repeat(4, 1fr)',
+        gridTemplateAreas:
+          '"header header header header" "weather weather schedule cameras" "weather weather meals plants" "elec gas water commute" "spotify spotify family family"',
+        gap: 10,
+        padding: '0 8px 8px',
       }}
     >
       <link
@@ -1918,7 +2198,7 @@ export function HubPage() {
           display: 'grid',
           gridTemplateColumns: '1fr auto 1fr',
           alignItems: 'center',
-          padding: '12px 20px 8px 16px',
+          padding: '12px 12px 8px',
           background: 'rgba(10,15,20,0.35)',
           backdropFilter: 'blur(12px)',
         }}
@@ -1938,11 +2218,11 @@ export function HubPage() {
           >
             {IC.home({ sz: 20, c: C.accent })}
           </div>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>The Axelson's</span>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>The Axelson&apos;s</span>
         </div>
         <span
           style={{
-            fontSize: 28,
+            fontSize: 32,
             fontWeight: 800,
             fontVariantNumeric: 'tabular-nums',
             textShadow: '0 2px 8px rgba(0,0,0,0.5)',
@@ -1973,7 +2253,7 @@ export function HubPage() {
                 {IC.alert({ sz: 13, c: '#fff' })}
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: 11,
                     fontWeight: 800,
                     color: '#fff',
                     letterSpacing: '0.02em',
@@ -1982,7 +2262,7 @@ export function HubPage() {
                   {topAlert.event}
                 </span>
                 {alerts.length > 1 && (
-                  <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: 700 }}>
                     +{alerts.length - 1}
                   </span>
                 )}
@@ -1998,10 +2278,10 @@ export function HubPage() {
               }}
             >
               <WxI t={wxIcon} sz={16} />
-              <span style={{ fontSize: 14, fontWeight: 700 }}>{wxTemp}&deg;F</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{wxTemp}&deg;F</span>
               <span style={{ color: C.t3 }}>&middot;</span>
               {IC.drop({ sz: 14, c: C.accent })}
-              <span style={{ fontSize: 13, fontWeight: 600, color: C.t1 }}>{wxHumidity}%</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: C.t1 }}>{wxHumidity}%</span>
             </Glass>
           </div>
           <button
@@ -2041,405 +2321,408 @@ export function HubPage() {
         </div>
       </header>
 
-      {/* UTILITY WIDGETS — stacked left column */}
-      <div
-        style={{
-          gridArea: 'utils',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          padding: '8px 6px 10px 10px',
-          overflow: 'hidden',
-        }}
+      {/* WEATHER — 2×2 bento tile */}
+      <Glass
+        gridArea="weather"
+        onClick={() => setPage('weather')}
+        style={{ padding: 20, justifyContent: 'space-between', cursor: 'pointer' }}
       >
-        {/* Electricity */}
-        <Glass
-          onClick={() => setPage('electricity')}
-          style={{  }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            {IC.zap({ sz: 13, c: C.accent })}
-            <span
-              style={{ fontSize: 10, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}
-            >
-              ELECTRICITY
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: C.accent }}>24.7</span>
-            <span style={{ fontSize: 10, color: C.t1 }}>kWh</span>
-          </div>
-          <div style={{ marginTop: 4 }}>
-            <Spark data={ELEC_DATA} color={C.accent} h={18} />
-          </div>
-          <div style={{ fontSize: 9, color: C.t2, marginTop: 4 }}>
-            Est.{' '}
-            <span style={{ fontWeight: 700, color: C.t1 }}>$127</span>
-            <span style={{ color: C.t3 }}> /mo</span>
-          </div>
-        </Glass>
-
-        {/* Gas */}
-        <Glass
-          onClick={() => setPage('gas')}
-          style={{  }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            {IC.flame({ sz: 13, c: C.amber })}
-            <span
-              style={{ fontSize: 10, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}
-            >
-              GAS
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: C.amber }}>1.4</span>
-            <span style={{ fontSize: 10, color: C.t1 }}>thm</span>
-          </div>
-          <div style={{ marginTop: 4 }}>
-            <Spark data={GAS_DATA} color={C.amber} h={18} />
-          </div>
-          <div style={{ fontSize: 9, color: C.t2, marginTop: 4 }}>
-            Est.{' '}
-            <span style={{ fontWeight: 700, color: C.t1 }}>$48</span>
-            <span style={{ color: C.t3 }}> /mo</span>
-          </div>
-        </Glass>
-
-        {/* Water */}
-        <Glass
-          onClick={() => setPage('water')}
-          style={{  }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            {IC.drop({ sz: 13, c: '#60a5fa' })}
-            <span
-              style={{ fontSize: 10, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}
-            >
-              WATER
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 800, color: '#60a5fa' }}>48</span>
-            <span style={{ fontSize: 10, color: C.t1 }}>gal</span>
-          </div>
-          <div style={{ marginTop: 4 }}>
-            <Spark data={WATER_DATA} color="#60a5fa" h={18} />
-          </div>
-          <div style={{ fontSize: 9, color: C.t2, marginTop: 4 }}>
-            Est.{' '}
-            <span style={{ fontWeight: 700, color: C.t1 }}>$38</span>
-            <span style={{ color: C.t3 }}> /mo</span>
-          </div>
-        </Glass>
-
-      </div>
-
-      {/* HERO — background image area */}
-      <div style={{ gridArea: 'hero', position: 'relative', overflow: 'hidden', margin: '0 8px' }}>
-      </div>
-
-      {/* Forecast */}
-      <div style={{ gridArea: 'weather', padding: '0 6px 0 10px' }}>
-        {precipBadge && (
-          <Glass
-            style={{
-              marginBottom: 6,
-              padding: '10px 16px',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
-              background: 'rgba(20,80,70,0.75)',
-              border: `1px solid rgba(45,212,191,0.5)`,
-              boxShadow: '0 0 20px rgba(45,212,191,0.25)',
-              backdropFilter: 'blur(20px)',
-            }}
-          >
-            <WxI t={precipBadge.type} sz={18} />
-            <span style={{ fontSize: 14, fontWeight: 800, color: '#5eead4' }}>{precipBadge.text}</span>
-          </Glass>
-        )}
-        <Glass onClick={() => setPage('weather')} style={{ cursor: 'pointer' }}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {forecast.map((f) => (
-              <div key={f.d} style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    fontSize: 8,
-                    color: C.t2,
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    marginBottom: 4,
-                  }}
-                >
-                  {f.d.toUpperCase()}
-                </div>
-                <WxI t={f.t} />
-                <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3 }}>{f.hi}&deg;</div>
-                {f.snow > 0.1 ? (
-                  <div style={{ fontSize: 9, color: '#93c5fd', fontWeight: 600, marginTop: 2 }}>
-                    {f.snow.toFixed(1)}&quot;
-                  </div>
-                ) : f.rain > 0.01 ? (
-                  <div style={{ fontSize: 9, color: C.accent, fontWeight: 600, marginTop: 2 }}>
-                    {f.rain < 0.1 ? '<0.1' : f.rain.toFixed(1)}&quot;
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </Glass>
-      </div>
-
-      {/* Commute */}
-      <div style={{ gridArea: 'commute', padding: '8px 6px 10px 10px' }}>
-        <Glass
-          onClick={() => setPage('commute')}
-          style={{  }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {IC.car({ sz: 16, c: C.accent })}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+            <WxI t={wxIcon} sz={36} />
             <div>
-              <div style={{ fontSize: 10, color: C.t1 }}>Downtown MPLS</div>
-              <div style={{ marginTop: 2 }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: C.green }}>32</span>
-                <span style={{ fontSize: 10, color: C.t1, marginLeft: 3 }}>min</span>
+              <div style={{ fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{wxTemp}&deg;F</div>
+              <div style={{ fontSize: 15, color: C.t1, marginTop: 4 }}>
+                {wx ? wmoToDescription(wx.weatherCode) : 'Loading\u2026'} &middot; Humidity {wxHumidity}%
               </div>
             </div>
           </div>
-        </Glass>
-      </div>
-
-      {/* FAMILY BAR */}
-      <div
-        style={{
-          gridArea: 'family',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          padding: '10px 16px',
-          background: 'rgba(10,15,20,0.5)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        {FAMILY.map((f) => (
-          <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          {precipBadge && (
             <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                background: `${f.color}20`,
-                border: `2px solid ${f.color}40`,
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
+                gap: 8,
+                background: 'rgba(20,80,70,0.75)',
+                border: '1px solid rgba(45,212,191,0.5)',
+                borderRadius: 10,
+                padding: '8px 14px',
+                marginTop: 4,
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 700 }}>{f.name[0]}</span>
-              <span
-                style={{
-                  position: 'absolute',
-                  bottom: -1,
-                  right: -1,
-                  width: 9,
-                  height: 9,
-                  borderRadius: 5,
-                  background: C.green,
-                  border: '2px solid rgba(10,15,20,0.8)',
-                }}
-              />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600 }}>{f.name}</div>
-              <div style={{ fontSize: 9, color: C.green, fontWeight: 600 }}>Home</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* RIGHT SIDEBAR */}
-      <aside
-        style={{
-          gridArea: 'sidebar',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          padding: '8px 10px 10px 6px',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Widget rows — 50% of sidebar height */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <CompactRow
-            icon={IC.cam({ sz: 13, c: C.accent })}
-            label="Cameras"
-            summary={
-              ring.anyMotion && ring.motionCamera
-                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={C.amber} sz={5} />Motion — {ring.motionCamera.name}</span>
-                : `${ring.onlineCount} Online`
-            }
-            accent={ring.anyMotion ? C.amber : C.green}
-            onClick={() => setPage('cameras')}
-          />
-          <CompactRow
-            icon={IC.leaf({ sz: 13, c: C.green })}
-            label="Plants"
-            summary={
-              urgentPlant
-                ? urgentPlant.overdue
-                  ? `${urgentPlant.name} overdue`
-                  : urgentPlant.daysUntil === 0
-                    ? `Water ${urgentPlant.name} today`
-                    : `${urgentPlant.daysUntil}d til ${urgentPlant.name}`
-                : 'All good'
-            }
-            accent={urgentPlant?.overdue ? C.red : urgentPlant?.needsWater ? C.amber : C.green}
-            onClick={() => setPage('plants')}
-          />
-          <CompactRow
-            icon={IC.cal({ sz: 13, c: C.purple })}
-            label="Schedule"
-            summary={(() => {
-              const todayEv = calEvents.find(isToday);
-              if (todayEv) return <><span style={{ color: C.t2 }}>{formatEventTime(todayEv)}</span> {todayEv.summary}</>;
-              const nextEv = calEvents[0];
-              if (nextEv) return <><span style={{ color: C.t2 }}>{formatEventDate(nextEv)}</span> {nextEv.summary}</>;
-              return 'No events';
-            })()}
-            onClick={() => setPage('calendar')}
-          />
-          <CompactRow
-            icon={IC.msg({ sz: 13, c: C.purple })}
-            label="Family"
-            summary={(() => {
-              const recent = msgs.messages[0];
-              if (!recent) return 'No messages';
-              const age = (Date.now() - new Date(recent.lastChanged).getTime()) / 60000;
-              if (age > 30) return 'No new messages';
-              return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Dot color={recent.color} sz={5} />{recent.from}: {recent.text}</span>;
-            })()}
-            onClick={() => setPage('family')}
-          />
-        </div>
-
-        {/* Spotify */}
-        <div
-          onClick={() => setPage('music')}
-          style={{
-            background: C.card,
-            backdropFilter: C.blur,
-            WebkitBackdropFilter: C.blur,
-            borderRadius: C.r,
-            border: `1px solid ${C.borderGlass}`,
-            overflow: 'hidden',
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            cursor: 'pointer',
-          }}
-        >
-          {sp.albumArt ? (
-            <div style={{ flex: 1, minHeight: 60, position: 'relative', overflow: 'hidden' }}>
-              <img
-                src={sp.albumArt}
-                alt=""
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 40%, rgba(12,16,22,0.8))' }} />
-            </div>
-          ) : (
-            <div
-              style={{
-                height: 100,
-                background: 'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {IC.music({ sz: 28, c: C.t3 })}
+              <WxI t={precipBadge.type} sz={18} />
+              <span style={{ fontSize: 15, fontWeight: 800, color: '#5eead4' }}>{precipBadge.text}</span>
             </div>
           )}
-          <div style={{ padding: '12px 14px 16px' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {sp.title || 'Not Playing'}
-                </div>
-                {sp.artist && (
-                  <div style={{ fontSize: 10, color: C.t1, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
-                  </div>
-                )}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+          {forecast.map((f) => (
+            <div key={f.d} style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ fontSize: 12, color: C.t2, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>
+                {f.d.toUpperCase()}
               </div>
-              <ChevR />
+              <WxI t={f.t} sz={22} />
+              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{f.hi}&deg;</div>
+              <div style={{ fontSize: 13, color: C.t3 }}>{f.lo}&deg;</div>
+              {f.snow > 0.1 ? (
+                <div style={{ fontSize: 12, color: '#93c5fd', fontWeight: 600, marginTop: 2 }}>
+                  {f.snow.toFixed(1)}&quot;
+                </div>
+              ) : f.rain > 0.01 ? (
+                <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, marginTop: 2 }}>
+                  {f.rain < 0.1 ? '<0.1' : f.rain.toFixed(1)}&quot;
+                </div>
+              ) : null}
             </div>
-            {sp.duration > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={3} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                  <span style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>
-                    {fmtTime(spPos)}
-                  </span>
-                  <span style={{ fontSize: 8, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>
-                    {fmtTime(sp.duration)}
-                  </span>
+          ))}
+        </div>
+      </Glass>
+
+      {/* SCHEDULE tile */}
+      <Glass
+        gridArea="schedule"
+        onClick={() => setPage('calendar')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          {IC.cal({ sz: 18, c: C.purple })}
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Schedule</span>
+          <div style={{ flex: 1 }} />
+          <ChevR sz={16} />
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {calEvents.length === 0 ? (
+            <div style={{ fontSize: 14, color: C.t2 }}>No events</div>
+          ) : (
+            calEvents.slice(0, 3).map((e, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  padding: '8px 0',
+                  borderBottom: i < Math.min(calEvents.length, 3) - 1 ? `1px solid ${C.border}` : 'none',
+                }}
+              >
+                <div style={{ width: 4, borderRadius: 2, background: calendarColor(e.calendar), flexShrink: 0, alignSelf: 'stretch' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {e.summary}
+                  </div>
+                  <div style={{ fontSize: 13, color: C.t2, marginTop: 2 }}>
+                    {isToday(e) ? formatEventTime(e) : `${formatEventDate(e)} ${formatEventTime(e)}`}
+                  </div>
                 </div>
               </div>
+            ))
+          )}
+        </div>
+      </Glass>
+
+      {/* CAMERAS tile */}
+      <Glass
+        gridArea="cameras"
+        onClick={() => setPage('cameras')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          {IC.cam({ sz: 18, c: C.accent })}
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Cameras</span>
+          <div style={{ flex: 1 }} />
+          <ChevR sz={16} />
+        </div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: ring.anyMotion ? C.amber : C.green, marginBottom: 6 }}>
+          {ring.anyMotion ? 'Motion' : `${ring.onlineCount} Online`}
+        </div>
+        {ring.anyMotion && ring.motionCamera && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <Dot color={C.amber} sz={7} />
+            <span style={{ fontSize: 14, color: C.amber, fontWeight: 600 }}>{ring.motionCamera.name}</span>
+          </div>
+        )}
+        <div style={{ flex: 1 }}>
+          {ring.cameras.slice(0, 4).map((cam) => (
+            <div key={cam.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+              <Dot color={cam.motionDetected ? C.amber : C.green} sz={6} />
+              <span style={{ fontSize: 13, color: C.t1 }}>{cam.name}</span>
+            </div>
+          ))}
+        </div>
+      </Glass>
+
+      {/* MEALS tile */}
+      <Glass
+        gridArea="meals"
+        onClick={() => setPage('meals')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <Sv sz={18} c="#fb923c"><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Meals</span>
+          <div style={{ flex: 1 }} />
+          <ChevR sz={16} />
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {(() => {
+            const todayMeals = getTodayMeals(mealPlan);
+            const next = getNextMeal(mealPlan);
+            if (todayMeals.length === 0 && !next) return <div style={{ fontSize: 14, color: C.t2 }}>No meal plan</div>;
+            return todayMeals.length > 0 ? todayMeals.map((m, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i < todayMeals.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: mealTypeColor(m.type), textTransform: 'uppercase', width: 60, flexShrink: 0 }}>{mealTypeLabel(m.type)}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+              </div>
+            )) : next ? (
+              <div>
+                <div style={{ fontSize: 13, color: C.t2, marginBottom: 4 }}>{next.dayLabel}</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{next.meal.name}</div>
+              </div>
+            ) : null;
+          })()}
+        </div>
+      </Glass>
+
+      {/* PLANTS tile */}
+      <Glass
+        gridArea="plants"
+        onClick={() => setPage('plants')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          {IC.leaf({ sz: 18, c: C.green })}
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Plants</span>
+          <div style={{ flex: 1 }} />
+          <ChevR sz={16} />
+        </div>
+        {urgentPlant ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: urgentPlant.overdue ? C.red : urgentPlant.needsWater ? C.amber : C.white, marginBottom: 8 }}>
+              {urgentPlant.name}
+            </div>
+            <Bar value={urgentPlant.progress} color={urgentPlant.overdue ? C.red : urgentPlant.needsWater ? C.amber : C.green} h={6} />
+            <div style={{ fontSize: 14, color: urgentPlant.overdue ? C.red : urgentPlant.needsWater ? C.amber : C.t2, marginTop: 8 }}>
+              {urgentPlant.overdue
+                ? `${urgentPlant.daysSince - urgentPlant.intervalDays}d overdue`
+                : urgentPlant.daysUntil === 0
+                  ? 'Water today'
+                  : `${urgentPlant.daysUntil}d until next`}
+            </div>
+            {plants.length > 1 && (
+              <div style={{ fontSize: 13, color: C.t3, marginTop: 4 }}>+{plants.length - 1} more</div>
             )}
-            <div
+          </div>
+        ) : (
+          <div style={{ fontSize: 15, color: C.green }}>All plants happy</div>
+        )}
+      </Glass>
+
+      {/* ELECTRICITY tile */}
+      <Glass
+        gridArea="elec"
+        onClick={() => setPage('electricity')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {IC.zap({ sz: 16, c: C.accent })}
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}>ELECTRICITY</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: C.accent }}>24.7</span>
+          <span style={{ fontSize: 14, color: C.t1 }}>kWh</span>
+        </div>
+        <div style={{ marginTop: 8, flex: 1 }}>
+          <Spark data={ELEC_DATA} color={C.accent} h={28} />
+        </div>
+        <div style={{ fontSize: 13, color: C.t2, marginTop: 6 }}>
+          Est. <span style={{ fontWeight: 700, color: C.t1 }}>$127</span>
+          <span style={{ color: C.t3 }}> /mo</span>
+        </div>
+      </Glass>
+
+      {/* GAS tile */}
+      <Glass
+        gridArea="gas"
+        onClick={() => setPage('gas')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {IC.flame({ sz: 16, c: C.amber })}
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}>GAS</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: C.amber }}>1.4</span>
+          <span style={{ fontSize: 14, color: C.t1 }}>thm</span>
+        </div>
+        <div style={{ marginTop: 8, flex: 1 }}>
+          <Spark data={GAS_DATA} color={C.amber} h={28} />
+        </div>
+        <div style={{ fontSize: 13, color: C.t2, marginTop: 6 }}>
+          Est. <span style={{ fontWeight: 700, color: C.t1 }}>$48</span>
+          <span style={{ color: C.t3 }}> /mo</span>
+        </div>
+      </Glass>
+
+      {/* WATER tile */}
+      <Glass
+        gridArea="water"
+        onClick={() => setPage('water')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {IC.drop({ sz: 16, c: '#60a5fa' })}
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.t1, letterSpacing: '0.06em' }}>WATER</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: '#60a5fa' }}>48</span>
+          <span style={{ fontSize: 14, color: C.t1 }}>gal</span>
+        </div>
+        <div style={{ marginTop: 8, flex: 1 }}>
+          <Spark data={WATER_DATA} color="#60a5fa" h={28} />
+        </div>
+        <div style={{ fontSize: 13, color: C.t2, marginTop: 6 }}>
+          Est. <span style={{ fontWeight: 700, color: C.t1 }}>$38</span>
+          <span style={{ color: C.t3 }}> /mo</span>
+        </div>
+      </Glass>
+
+      {/* COMMUTE tile */}
+      <Glass
+        gridArea="commute"
+        onClick={() => setPage('commute')}
+        style={{ padding: 16, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {IC.car({ sz: 18, c: C.accent })}
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Commute</span>
+        </div>
+        <div style={{ fontSize: 14, color: C.t1, marginBottom: 4 }}>Downtown MPLS</div>
+        <div>
+          <span style={{ fontSize: 36, fontWeight: 800, color: C.green }}>32</span>
+          <span style={{ fontSize: 14, color: C.t1, marginLeft: 4 }}>min</span>
+        </div>
+        <div style={{ fontSize: 13, color: C.green, marginTop: 4 }}>Light traffic</div>
+      </Glass>
+
+      {/* SPOTIFY — 2-column tile */}
+      <div
+        onClick={() => setPage('music')}
+        style={{
+          gridArea: 'spotify',
+          background: C.card,
+          backdropFilter: C.blur,
+          WebkitBackdropFilter: C.blur,
+          borderRadius: C.r,
+          border: `1px solid ${C.borderGlass}`,
+          overflow: 'hidden',
+          display: 'flex',
+          cursor: 'pointer',
+        }}
+      >
+        {sp.albumArt ? (
+          <div style={{ width: 180, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+            <img src={sp.albumArt} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, transparent 60%, rgba(12,16,22,0.8))' }} />
+          </div>
+        ) : (
+          <div style={{ width: 180, flexShrink: 0, background: 'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {IC.music({ sz: 36, c: C.t3 })}
+          </div>
+        )}
+        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {sp.title || 'Not Playing'}
+          </div>
+          {sp.artist && (
+            <div style={{ fontSize: 14, color: C.t1, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
+            </div>
+          )}
+          {sp.duration > 0 && (
+            <div style={{ marginTop: 12, maxWidth: 300 }}>
+              <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={4} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                <span style={{ fontSize: 11, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>{fmtTime(spPos)}</span>
+                <span style={{ fontSize: 11, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>{fmtTime(sp.duration)}</span>
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 10 }}>
+            <button onClick={(e) => { e.stopPropagation(); sp.prev(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+              {IC.prev({ sz: 18, c: C.t1 })}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); sp.playPause(); }}
               style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                background: C.white,
+                border: 'none',
+                cursor: 'pointer',
                 display: 'flex',
-                justifyContent: 'center',
                 alignItems: 'center',
-                gap: 16,
-                marginTop: 8,
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,.3)',
               }}
             >
-              <button
-                onClick={(e) => { e.stopPropagation(); sp.prev(); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
-              >
-                {IC.prev({ sz: 14, c: C.t1 })}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); sp.playPause(); }}
+              {sp.playing ? IC.pause({ sz: 16, c: '#0a0f14' }) : IC.play({ sz: 16, c: '#0a0f14' })}
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); sp.next(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+              {IC.next({ sz: 18, c: C.t1 })}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* FAMILY — 2-column tile */}
+      <Glass
+        gridArea="family"
+        onClick={() => setPage('family')}
+        style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 20, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
+          {FAMILY.map((f) => (
+            <div key={f.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  background: C.white,
-                  border: 'none',
-                  cursor: 'pointer',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  background: `${f.color}20`,
+                  border: `2px solid ${f.color}40`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+                  position: 'relative',
                 }}
               >
-                {sp.playing
-                  ? IC.pause({ sz: 12, c: '#0a0f14' })
-                  : IC.play({ sz: 12, c: '#0a0f14' })}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); sp.next(); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
-              >
-                {IC.next({ sz: 14, c: C.t1 })}
-              </button>
+                <span style={{ fontSize: 14, fontWeight: 700 }}>{f.name[0]}</span>
+                <span style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: 5, background: C.green, border: '2px solid rgba(10,15,20,0.8)' }} />
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>{f.name}</span>
             </div>
-          </div>
+          ))}
         </div>
-      </aside>
+        <div style={{ flex: 1, minWidth: 0, borderLeft: `1px solid ${C.border}`, paddingLeft: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            {IC.msg({ sz: 16, c: C.purple })}
+            <span style={{ fontSize: 15, fontWeight: 700 }}>Messages</span>
+          </div>
+          {(() => {
+            const recent = msgs.messages[0];
+            if (!recent) return <div style={{ fontSize: 14, color: C.t2 }}>No messages yet</div>;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Dot color={recent.color} sz={7} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: recent.color }}>{recent.from}:</span>
+                <span style={{ fontSize: 14, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recent.text}</span>
+                <span style={{ fontSize: 12, color: C.t3, flexShrink: 0 }}>{timeAgo(recent.lastChanged)}</span>
+              </div>
+            );
+          })()}
+        </div>
+        <ChevR sz={16} />
+      </Glass>
 
       {(db === 'press' || ring.doorbellPressed) && <DoorbellPress onClose={() => { closeDb(); ring.dismissDoorbell(); }} snapshotUrl={ring.cameras[0]?.snapshotUrl} />}
       {(db === 'motion' || ring.motionAlert) && <MotionBanner onClose={() => { closeDb(); ring.dismissMotion(); }} camera={ring.motionAlert ?? undefined} />}

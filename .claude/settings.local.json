@@ -6,7 +6,12 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --connect-timeout 5 http://192.168.4.107:8123/api/)",
       "Bash(curl -v --connect-timeout 5 http://192.168.4.107:8123/)",
       "Bash(curl -s \"https://api.weather.gov/gridpoints/MPX/95,66/forecast\")",
-      "Bash(curl -s \"https://api.weather.gov/gridpoints/MPX/95,66\")"
+      "Bash(curl -s \"https://api.weather.gov/gridpoints/MPX/95,66\")",
+      "Bash(unzip -o ~/Documents/homeos-meal-widget.zip -d /tmp/homeos-meal-widget)",
+      "Bash(mkdir -p /Users/chrisaxelson/HomeOS/src/data)",
+      "Bash(cp /tmp/homeos-meal-widget/mnt/Documents/meal-system/homeos-integration/useMealPlan.ts /Users/chrisaxelson/HomeOS/src/hooks/useMealPlan.ts)",
+      "Bash(cp /tmp/homeos-meal-widget/mnt/Documents/meal-system/homeos-integration/mealplan.json /Users/chrisaxelson/HomeOS/src/data/mealplan.json)",
+      "Bash(cp /tmp/homeos-meal-widget/mnt/Documents/meal-system/homeos-integration/HubPage.tsx /Users/chrisaxelson/HomeOS/src/pages/HubPage.tsx)"
     ]
   }
 }

@@ -1,0 +1,323 @@
+{
+  "week": "2026-03-27 to 2026-04-01",
+  "generated": "2026-03-26T18:00:00",
+  "days": [
+    {
+      "date": "2026-03-27",
+      "label": "Friday",
+      "note": "Kids arrive. Spring break. Cloudy, ~45°F. Indoor day.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Sausage, Eggs & Hawaiian Roll Toast",
+          "time": "15 min",
+          "onHand": true,
+          "description": "Split hawaiian rolls, toast with butter on the Blackstone or in a pan — they crisp up beautifully.",
+          "ingredients": ["sausage (on hand)", "eggs (on hand)", "hawaiian rolls (on hand)", "butter (on hand)"],
+          "steps": [
+            "Split hawaiian rolls in half",
+            "Toast with butter on Blackstone or in a pan until golden",
+            "Cook sausage links until browned",
+            "Scramble or fry eggs to preference",
+            "Serve together — kids won't miss sliced bread"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Turkey & Cheese Roll-Ups + Veggies & Crackers",
+          "time": "10 min",
+          "onHand": true,
+          "description": "Deli turkey, Kraft Singles or parmesan, rolled up with carrots and crackers. Zero cooking.",
+          "ingredients": ["deli turkey (on hand — 3 kinds!)", "Kraft Singles or parmesan (on hand)", "carrots (on hand)", "crackers (on hand)"],
+          "steps": [
+            "Lay out deli turkey slices",
+            "Add cheese slice and roll up",
+            "Cut carrots into sticks",
+            "Arrange with crackers on plates",
+            "Let the kids build their own"
+          ]
+        },
+        {
+          "type": "dinner",
+          "name": "Dad's Spaghetti + Roasted Broccoli",
+          "time": "30 min",
+          "onHand": false,
+          "description": "Brown ground beef with garlic and onion, simmer with marinara. Serve over spaghetti with parmesan.",
+          "ingredients": ["ground beef, 1 lb (BUY)", "broccoli (BUY)", "garlic, fresh (BUY)", "onion (BUY)", "spaghetti noodles (on hand)", "marinara sauce (on hand)", "parmesan (on hand)", "olive oil (on hand)", "Italian seasoning (on hand)"],
+          "steps": [
+            "Preheat oven to 425°F for broccoli",
+            "Brown ground beef in a large pan, breaking it up",
+            "Add minced garlic and diced onion, cook 3 min",
+            "Season with Italian seasoning, salt, pepper",
+            "Add marinara sauce, simmer on low 15 min",
+            "Boil spaghetti according to package",
+            "Toss broccoli florets with olive oil, salt, pepper, smoked paprika",
+            "Roast broccoli at 425°F for 20 min until charred edges",
+            "Serve spaghetti with sauce and heavy parmesan shower"
+          ],
+          "leftoverNote": "Make extra spaghetti for Saturday lunch."
+        }
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "label": "Saturday",
+      "note": "Full kid day. If it hits 60°F — BLACKSTONE DAY. Olivia has requested hot dogs.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Kodiak Pancakes + Bacon",
+          "time": "25 min",
+          "onHand": false,
+          "description": "Protein-packed Kodiak pancakes on the Blackstone. Giant Kirkland maple syrup jug ready to go.",
+          "ingredients": ["Kodiak Buttermilk mix (on hand)", "bacon (BUY)", "maple syrup (on hand)", "butter (on hand)", "eggs (on hand)", "milk (on hand)"],
+          "steps": [
+            "Heat Blackstone (or large pan) to medium",
+            "Mix Kodiak pancake batter per box instructions",
+            "Lay bacon strips on the Blackstone alongside",
+            "Pour pancake batter in circles, flip when bubbles form",
+            "Cook bacon until crispy",
+            "Serve stacked with maple syrup and butter"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Leftover Spaghetti",
+          "time": "5 min",
+          "onHand": true,
+          "description": "Friday's leftovers. Microwave and done. No cooking, no thinking.",
+          "ingredients": ["leftover spaghetti from Friday"],
+          "steps": ["Reheat in microwave 2-3 min", "Serve with extra parmesan"]
+        },
+        {
+          "type": "dinner",
+          "name": "Gourmet Blackstone Hot Dogs + Crispy Smashed Potatoes",
+          "time": "35 min",
+          "onHand": false,
+          "description": "All-beef hot dogs on the Blackstone with a build-your-own toppings bar. Crispy smashed potatoes on the side.",
+          "ingredients": ["all-beef hot dogs (BUY)", "hot dog buns (BUY)", "baby potatoes, 1.5 lbs (BUY)", "onions for caramelizing (BUY)", "olive oil (on hand)", "butter (on hand)", "yellow mustard (on hand)", "ketchup (on hand)", "BBQ sauce (on hand)", "garlic salt (on hand)", "smoked paprika (on hand)"],
+          "steps": [
+            "Start caramelized onions FIRST — slice 2 large onions, cook low and slow on Blackstone with butter + pinch of sugar for 15-20 min",
+            "Boil baby potatoes until fork-tender (~15 min)",
+            "Smash potatoes flat on sheet pan with bottom of a glass",
+            "Drizzle smashed potatoes with olive oil, salt, pepper, garlic salt, smoked paprika",
+            "Roast potatoes at 425°F for 20-25 min until golden and crispy",
+            "Grill hot dogs on Blackstone while onions finish",
+            "Toast buns on Blackstone with butter",
+            "Set up toppings bar: caramelized onions, mustard, ketchup, BBQ sauce, relish, tomato slices"
+          ],
+          "toppings": [
+            {"name": "The Classic Loaded", "items": "Caramelized onions, yellow mustard, relish"},
+            {"name": "The Chicago-ish", "items": "Yellow mustard, sweet relish, diced onion, tomato slices, celery salt"},
+            {"name": "The BBQ Dad", "items": "Sweet Baby Ray's BBQ sauce, crispy onion strings, pickled jalapeños"},
+            {"name": "The Adult", "items": "Whole grain mustard, caramelized onions, sauerkraut, sriracha"}
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-03-29",
+      "label": "Sunday",
+      "note": "Mom's birthday dinner out. Keep it light and easy.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Breakfast Burritos",
+          "time": "25 min",
+          "onHand": false,
+          "description": "Scrambled eggs with sausage and cheese in warm tortillas. Kids build their own with salsa.",
+          "ingredients": ["flour tortillas (BUY)", "salsa (BUY)", "eggs (on hand)", "sausage (on hand)", "Kraft Singles (on hand)"],
+          "steps": [
+            "Brown sausage in a pan, crumble as it cooks",
+            "Scramble eggs in same pan with sausage",
+            "Warm tortillas on the stove (10-15 sec each side)",
+            "Let kids build: eggs + sausage + cheese + salsa",
+            "Roll into burritos"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Pizza Singles + Carrots",
+          "time": "15 min",
+          "onHand": true,
+          "description": "Sabatasso's pizza singles from the freezer. Air fry for extra crisp. Serve with carrots and hummus.",
+          "ingredients": ["Sabatasso's pizza singles (on hand)", "carrots (on hand)", "hummus (on hand)"],
+          "steps": [
+            "Air fry pizza singles for extra crisp (follow package directions)",
+            "Cut carrots into sticks",
+            "Serve with hummus or ranch for dipping"
+          ]
+        },
+        {
+          "type": "dinner",
+          "name": "Mom's Birthday — Eating Out",
+          "time": "",
+          "onHand": true,
+          "description": "No cooking! Enjoy the evening.",
+          "ingredients": [],
+          "steps": [],
+          "special": true,
+          "emoji": "🎂"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-30",
+      "label": "Monday",
+      "note": "Spring break continues. Cloudy, low 40s. Indoor comfort food day.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Smoothies + Bagels with Cream Cheese",
+          "time": "10 min",
+          "onHand": false,
+          "description": "Blend frozen fruit + yogurt + milk + hidden spinach. Mountain of cream cheese for the bagels.",
+          "ingredients": ["frozen mixed berries (BUY)", "bananas (BUY)", "yogurt (BUY)", "bagels (BUY)", "milk (on hand)", "cream cheese (on hand)", "spinach (on hand — they won't taste it)"],
+          "steps": [
+            "Add frozen berries, banana, yogurt, splash of milk to blender",
+            "Toss in a handful of spinach (they won't taste it, promise)",
+            "Blend until smooth",
+            "Toast bagels and spread with cream cheese",
+            "Pour smoothies into cups"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Air Fryer Chicken Tenders + Fries",
+          "time": "15 min",
+          "onHand": true,
+          "description": "Kirkland frozen chicken chunks + frozen fries in the air fryer. Serve with ketchup and Chick-fil-A sauce.",
+          "ingredients": ["Kirkland chicken chunks (on hand)", "frozen fries (on hand)", "ketchup (on hand)", "Chick-fil-A sauce (on hand)"],
+          "steps": [
+            "Toss chicken chunks and fries in air fryer",
+            "Cook per package directions (usually 400°F, 10-12 min)",
+            "Serve with ketchup and Chick-fil-A sauce",
+            "Zero stress, zero thinking"
+          ]
+        },
+        {
+          "type": "dinner",
+          "name": "Goulash + Garlic Bread",
+          "time": "45 min",
+          "onHand": false,
+          "description": "One-pot comfort food. Ground turkey, elbow macaroni, tomatoes — pasta cooks right in the sauce.",
+          "ingredients": ["ground turkey, 1.5 lbs (BUY)", "diced tomatoes, 2 cans (BUY)", "tomato sauce, 1 can (BUY)", "onion (BUY)", "garlic (BUY)", "elbow macaroni (on hand)", "Italian seasoning (on hand)", "smoked paprika (on hand)", "olive oil (on hand)", "brioche buns (BUY)", "butter (on hand)"],
+          "steps": [
+            "Heat olive oil in large pot over medium-high heat",
+            "Brown ground turkey with diced onion, break up as it cooks",
+            "Add minced garlic, cook 1 min",
+            "Add diced tomatoes, tomato sauce, Italian seasoning, smoked paprika, salt, pepper",
+            "Bring to a boil, stir in elbow macaroni",
+            "Cover and simmer until pasta is tender (~15 min), stirring occasionally",
+            "For garlic bread: soften butter + minced garlic + Italian seasoning + pinch of salt",
+            "Spread compound butter on split brioche buns",
+            "Broil in oven 2-3 min until golden and bubbly"
+          ],
+          "leftoverNote": "Goulash makes a TON. Tuesday lunch is covered — just microwave."
+        }
+      ]
+    },
+    {
+      "date": "2026-03-31",
+      "label": "Tuesday",
+      "note": "Spring break. Maybe a touch of sun, mid-40s.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Eggs, Bacon & Toast",
+          "time": "20 min",
+          "onHand": false,
+          "description": "Classic breakfast. Bacon and sliced bread from the Aldi run.",
+          "ingredients": ["bacon (BUY)", "sliced bread (BUY)", "eggs (on hand)", "butter (on hand)"],
+          "steps": [
+            "Cook bacon in a pan or on the Blackstone until crispy",
+            "Fry or scramble eggs to preference",
+            "Toast bread with butter",
+            "Serve together — classic and easy"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Leftover Goulash",
+          "time": "5 min",
+          "onHand": true,
+          "description": "Monday's goulash reheats perfectly. The pasta soaks up even more sauce overnight — almost better the next day.",
+          "ingredients": ["leftover goulash from Monday"],
+          "steps": ["Reheat in microwave 2-3 min", "Stir and serve"]
+        },
+        {
+          "type": "dinner",
+          "name": "Mini Meatloafs with Balsamic Glaze + Garlic Bread + Roasted Carrots",
+          "time": "40 min",
+          "onHand": false,
+          "description": "Air fryer mini meatloafs with a tangy balsamic-ketchup glaze. Brioche garlic bread and honey-roasted carrots.",
+          "ingredients": ["ground turkey, 1 lb (BUY)", "brioche buns (BUY — same pack as Monday)", "breadcrumbs (on hand)", "egg (on hand)", "garlic (BUY)", "Worcestershire sauce (on hand)", "ketchup (on hand)", "balsamic vinegar (on hand)", "Italian seasoning (on hand)", "carrots (on hand)", "honey (on hand)", "olive oil (on hand)", "butter (on hand)"],
+          "steps": [
+            "Preheat oven to 400°F for carrots",
+            "Mix ground turkey with breadcrumbs, egg, minced garlic, Italian seasoning, salt, pepper, splash of Worcestershire",
+            "Shape into thick disc/loaf shapes — like big meatballs flattened slightly",
+            "Air fry at 390°F for 8-10 min",
+            "Mix balsamic glaze: ketchup + balsamic vinegar (roughly 2:1 ratio)",
+            "Brush meatloafs with glaze in last 2 minutes",
+            "Peel carrots, cut into sticks, toss with olive oil, salt, pepper, drizzle of honey",
+            "Roast carrots at 400°F for 25 min",
+            "Make garlic bread: compound butter on split brioche buns, broil 2-3 min"
+          ]
+        }
+      ]
+    },
+    {
+      "date": "2026-04-01",
+      "label": "Wednesday",
+      "note": "Kids here until 5pm. Then Chris & Olivia are FREE.",
+      "meals": [
+        {
+          "type": "breakfast",
+          "name": "Everything Bagel Breakfast Sandwiches",
+          "time": "15 min",
+          "onHand": false,
+          "description": "Egg, sausage patty, american cheese on a toasted english muffin or bagel with Everything Bagel Seasoning.",
+          "ingredients": ["english muffins or leftover bagels (BUY)", "eggs (on hand)", "sausage (on hand)", "Kraft Singles (on hand)", "Everything Bagel Seasoning (on hand)"],
+          "steps": [
+            "Form sausage into patties, cook in pan until browned",
+            "Fry eggs to preference (over-easy works great)",
+            "Toast english muffins or bagels",
+            "Stack: muffin bottom + sausage + egg + cheese + muffin top",
+            "Sprinkle with Everything Bagel Seasoning"
+          ]
+        },
+        {
+          "type": "lunch",
+          "name": "Loaded Chicken Teriyaki Rice Bowls",
+          "time": "35 min",
+          "onHand": false,
+          "description": "Build-your-own bowls! Rice base, teriyaki chicken, roasted broccoli, sautéed zucchini, edamame. The last kid meal goes out with a bang.",
+          "ingredients": ["chicken thighs, boneless skinless (BUY)", "jasmine rice (BUY — almost out)", "frozen edamame (BUY)", "broccoli (BUY)", "zucchini (BUY)", "fresh ginger (BUY)", "green onions (BUY)", "sesame seeds (BUY)", "soy sauce (on hand)", "honey (on hand)", "garlic (BUY)", "olive oil (on hand)", "cornstarch (BUY if needed)"],
+          "steps": [
+            "Start rice cooker with jasmine rice",
+            "Make teriyaki sauce: whisk 1/4 cup soy sauce + 2 tbsp honey + 1 tbsp rice vinegar (or balsamic) + 1 tsp minced garlic + 1 tsp minced ginger + cornstarch slurry (1 tsp cornstarch + 1 tbsp water)",
+            "Dice chicken thighs, season with salt, pepper, garlic salt",
+            "Sear chicken in hot pan until golden with crispy edges (~5 min)",
+            "Pour teriyaki sauce over chicken, toss, let thicken 2 min",
+            "Toss broccoli florets with olive oil, salt, smoked paprika — roast at 425°F for 15 min",
+            "Quick-sauté zucchini half-moons in hot pan with oil + garlic salt, 3-4 min",
+            "Steam frozen shelled edamame in microwave 2-3 min",
+            "Set up assembly line: rice → chicken → broccoli → zucchini → edamame",
+            "Top with green onions, sesame seeds, extra soy sauce, sriracha (adults)"
+          ],
+          "leftoverNote": "Leftovers double as Chris & Olivia's dinner if you don't feel like going out."
+        },
+        {
+          "type": "dinner",
+          "name": "Order In or Teriyaki Bowl Leftovers",
+          "time": "",
+          "onHand": true,
+          "description": "End of 5-day kid stretch. You've earned a break. Leftovers are there if you want them.",
+          "ingredients": [],
+          "steps": [],
+          "special": true
+        }
+      ]
+    }
+  ]
+}
