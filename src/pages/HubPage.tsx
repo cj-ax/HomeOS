@@ -2232,10 +2232,10 @@ export function HubPage() {
         position: 'relative',
         overflow: 'hidden',
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(6, 1fr)',
         gridTemplateRows: 'auto repeat(4, 1fr)',
         gridTemplateAreas:
-          '"header header header header" "weather weather schedule cameras" "weather weather meals plants" "elec gas water commute" "spotify spotify family family"',
+          '"header header header header header header" "weather weather weather cameras cameras commute" "weather weather weather elec gas water" "schedule schedule meals spotify spotify spotify" "family family plants spotify spotify spotify"',
         gap: 10,
         padding: '0 8px 8px',
       }}
@@ -2728,26 +2728,26 @@ export function HubPage() {
         }}
       >
         {sp.albumArt ? (
-          <div style={{ width: 180, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ width: '50%', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
             <img src={sp.albumArt} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, transparent 60%, rgba(12,16,22,0.8))' }} />
           </div>
         ) : (
-          <div style={{ width: 180, flexShrink: 0, background: 'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '50%', flexShrink: 0, background: 'linear-gradient(135deg,rgba(26,26,46,0.6),rgba(22,33,62,0.6))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {IC.music({ sz: 36, c: C.t3 })}
           </div>
         )}
-        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center', width: '100%' }}>
             {sp.title || 'Not Playing'}
           </div>
           {sp.artist && (
-            <div style={{ fontSize: 14, color: C.t1, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 15, color: C.t1, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center', width: '100%' }}>
               {sp.artist}{sp.album ? ` \u00b7 ${sp.album}` : ''}
             </div>
           )}
           {sp.duration > 0 && (
-            <div style={{ marginTop: 12, maxWidth: 300 }}>
+            <div style={{ marginTop: 14, width: '100%' }}>
               <Bar value={sp.duration ? spPos / sp.duration : 0} color={C.accent} h={4} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
                 <span style={{ fontSize: 11, color: C.t2, fontVariantNumeric: 'tabular-nums' }}>{fmtTime(spPos)}</span>
@@ -2755,16 +2755,16 @@ export function HubPage() {
               </div>
             </div>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, marginTop: 14, width: '100%' }}>
             <button onClick={(e) => { e.stopPropagation(); sp.prev(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
               {IC.prev({ sz: 18, c: C.t1 })}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); sp.playPause(); }}
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
+                width: 48,
+                height: 48,
+                borderRadius: 24,
                 background: C.white,
                 border: 'none',
                 cursor: 'pointer',
@@ -2774,7 +2774,7 @@ export function HubPage() {
                 boxShadow: '0 2px 8px rgba(0,0,0,.3)',
               }}
             >
-              {sp.playing ? IC.pause({ sz: 16, c: '#0a0f14' }) : IC.play({ sz: 16, c: '#0a0f14' })}
+              {sp.playing ? IC.pause({ sz: 18, c: '#0a0f14' }) : IC.play({ sz: 18, c: '#0a0f14' })}
             </button>
             <button onClick={(e) => { e.stopPropagation(); sp.next(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
               {IC.next({ sz: 18, c: C.t1 })}
