@@ -84,8 +84,11 @@ export function useCalendar() {
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59);
 
-      const start = startOfDay.toISOString();
-      const end = endOfWeek.toISOString();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const toLocal = (d: Date) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      const start = toLocal(startOfDay);
+      const end = toLocal(endOfWeek);
 
       const allEvents: CalendarEvent[] = [];
 

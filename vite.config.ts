@@ -13,7 +13,7 @@ export default defineConfig({
     host: true,
     proxy: {
       '/ha-api': {
-        target: 'http://192.168.4.107:8123',
+        target: 'http://192.168.0.11:8123',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/ha-api/, '/api'),
         timeout: 30000,

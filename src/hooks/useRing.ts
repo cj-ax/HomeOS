@@ -25,7 +25,9 @@ export interface RingCamera {
   snapshotUrl: string | null;
 }
 
-const HA_BASE = 'http://192.168.4.107:8123';
+const HA_BASE = (import.meta.env.VITE_HA_URL ?? 'ws://192.168.0.11:8123')
+  .replace(/^ws/, 'http')
+  .replace(/\/$/, '');
 const HA_TOKEN = import.meta.env.VITE_HA_TOKEN ?? '';
 
 /** Build an authenticated snapshot URL from entity_picture path */
