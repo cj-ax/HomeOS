@@ -2559,36 +2559,47 @@ export function HubPage() {
         </div>
       </Glass>
 
-      {/* MEALS tile */}
+      {/* MEALS tile — shows current meal based on time of day */}
       <Glass
         gridArea="meals"
         onClick={() => setPage('meals')}
         style={{ padding: 16, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <Sv sz={18} c="#fb923c"><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>
-          <span style={{ fontSize: 15, fontWeight: 700 }}>Meals</span>
-          <div style={{ flex: 1 }} />
-          <ChevR sz={16} />
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          {(() => {
-            const todayMeals = getTodayMeals(mealPlan);
-            const next = getNextMeal(mealPlan);
-            if (todayMeals.length === 0 && !next) return <div style={{ fontSize: 14, color: C.t2 }}>No meal plan</div>;
-            return todayMeals.length > 0 ? todayMeals.map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: i < todayMeals.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: mealTypeColor(m.type), textTransform: 'uppercase', width: 60, flexShrink: 0 }}>{mealTypeLabel(m.type)}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+        {(() => {
+          const next = getNextMeal(mealPlan);
+          if (!next) return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Sv sz={18} c="#fb923c"><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>
+                <span style={{ fontSize: 15, fontWeight: 700 }}>Meals</span>
               </div>
-            )) : next ? (
-              <div>
-                <div style={{ fontSize: 13, color: C.t2, marginBottom: 4 }}>{next.dayLabel}</div>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{next.meal.name}</div>
+              <div style={{ fontSize: 14, color: C.t2 }}>No meal plan</div>
+            </>
+          );
+          const label = next.meal.type === 'breakfast' ? "What's for Breakfast" : next.meal.type === 'lunch' ? "What's for Lunch" : next.meal.type === 'dinner' ? "What's for Dinner" : "What's Next";
+          const color = mealTypeColor(next.meal.type);
+          return (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Sv sz={18} c={color}><path d="M3 2h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 4M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></Sv>
+                <span style={{ fontSize: 15, fontWeight: 700, color }}>{label}</span>
+                <div style={{ flex: 1 }} />
+                <ChevR sz={16} />
               </div>
-            ) : null;
-          })()}
-        </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>
+                  {next.meal.emoji ? `${next.meal.emoji} ` : ''}{next.meal.name}
+                </div>
+                {next.meal.time && (
+                  <div style={{ fontSize: 13, color: C.t2, marginTop: 4 }}>{next.meal.time}</div>
+                )}
+                {next.dayLabel !== 'Today' && (
+                  <div style={{ fontSize: 12, color: C.t3, marginTop: 2 }}>{next.dayLabel}</div>
+                )}
+              </div>
+            </>
+          );
+        })()}
       </Glass>
 
       {/* PLANTS tile */}
@@ -2783,54 +2794,41 @@ export function HubPage() {
         </div>
       </div>
 
-      {/* FAMILY — 2-column tile */}
+      {/* MESSAGES tile */}
       <Glass
         gridArea="family"
         onClick={() => setPage('family')}
-        style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 20, cursor: 'pointer' }}
+        style={{ padding: 16, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
-          {FAMILY.map((f) => (
-            <div key={f.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          {IC.msg({ sz: 18, c: C.purple })}
+          <span style={{ fontSize: 15, fontWeight: 700 }}>Messages</span>
+          <div style={{ flex: 1 }} />
+          <ChevR sz={16} />
+        </div>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          {msgs.messages.length === 0 ? (
+            <div style={{ fontSize: 14, color: C.t2 }}>No messages yet</div>
+          ) : (
+            msgs.messages.slice(0, 3).map((m, i) => (
               <div
+                key={i}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  background: `${f.color}20`,
-                  border: `2px solid ${f.color}40`,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
+                  gap: 8,
+                  padding: '6px 0',
+                  borderBottom: i < Math.min(msgs.messages.length, 3) - 1 ? `1px solid ${C.border}` : 'none',
                 }}
               >
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{f.name[0]}</span>
-                <span style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: 5, background: C.green, border: '2px solid rgba(10,15,20,0.8)' }} />
+                <Dot color={m.color} sz={7} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: m.color, flexShrink: 0 }}>{m.from}</span>
+                <span style={{ fontSize: 14, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.text}</span>
+                <span style={{ fontSize: 12, color: C.t3, flexShrink: 0 }}>{timeAgo(m.lastChanged)}</span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600 }}>{f.name}</span>
-            </div>
-          ))}
+            ))
+          )}
         </div>
-        <div style={{ flex: 1, minWidth: 0, borderLeft: `1px solid ${C.border}`, paddingLeft: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            {IC.msg({ sz: 16, c: C.purple })}
-            <span style={{ fontSize: 15, fontWeight: 700 }}>Messages</span>
-          </div>
-          {(() => {
-            const recent = msgs.messages[0];
-            if (!recent) return <div style={{ fontSize: 14, color: C.t2 }}>No messages yet</div>;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Dot color={recent.color} sz={7} />
-                <span style={{ fontSize: 14, fontWeight: 600, color: recent.color }}>{recent.from}:</span>
-                <span style={{ fontSize: 14, color: C.t1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recent.text}</span>
-                <span style={{ fontSize: 12, color: C.t3, flexShrink: 0 }}>{timeAgo(recent.lastChanged)}</span>
-              </div>
-            );
-          })()}
-        </div>
-        <ChevR sz={16} />
       </Glass>
 
       {(db === 'press' || ring.doorbellPressed) && <DoorbellPress onClose={() => { closeDb(); ring.dismissDoorbell(); }} snapshotUrl={ring.cameras[0]?.snapshotUrl} />}
