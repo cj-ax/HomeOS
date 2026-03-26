@@ -973,6 +973,61 @@ export function HubPage() {
   const wxIcon = pirate.available ? (pwConditionMap[pirate.precip.condition] ?? 'cloud') : wx ? wmoToType(wx.weatherCode) : 'snow';
   const wxTemp = wx?.temperature ?? 34;
   const wxHumidity = wx?.humidity ?? 55;
+  const today = weather?.daily[0] ?? null;
+
+  // Sunrise/sunset formatted as "7:12 AM"
+  const fmtSunTime = (iso: string | undefined) => {
+    if (!iso) return '--';
+    const d = new Date(iso);
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  };
+
+  // Wind direction degrees → compass label
+  const windDir = (deg: number) => {
+    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return dirs[Math.round(deg / 22.5) % 16];
+  };
+
+  // Build a friendly, conversational forecast narrative
+  const todayNarrative = (() => {
+    if (!today || !wx) return null;
+    const desc = wmoToDescription(wx.weatherCode).toLowerCase();
+    const feelsLike = Math.round(wx.apparentTemperature);
+    const wind = Math.round(wx.windSpeed);
+    const windMax = Math.round(today.windSpeedMax);
+    const snow = forecast[0]?.snow ?? 0;
+    const rain = forecast[0]?.rain ?? 0;
+    const tonight = weather?.daily[1] ?? null;
+    const tonightDesc = tonight ? wmoToDescription(tonight.weatherCode).toLowerCase() : null;
+
+    const parts: string[] = [];
+
+    // Opening — friendly tone based on conditions
+    if (snow > 2) parts.push(`Heads up — we're looking at ${snow.toFixed(1)}" of snow today.`);
+    else if (snow > 0.1) parts.push(`A little snow today, about ${snow.toFixed(1)}".`);
+    else if (rain > 0.5) parts.push(`Grab an umbrella — ${rain.toFixed(1)}" of rain headed our way.`);
+    else if (rain > 0.01) parts.push(`Some rain in the forecast, around ${rain < 0.1 ? 'a trace' : rain.toFixed(1) + '"'}.`);
+    else if (desc.includes('clear') || desc.includes('sunny')) parts.push(`Looking like a nice one out there — ${desc} skies.`);
+    else parts.push(`It's ${desc} right now.`);
+
+    // Temperature context
+    parts.push(`High of ${today.hi}°, low of ${today.lo}°.`);
+    if (Math.abs(feelsLike - wxTemp) >= 5) {
+      parts.push(feelsLike < wxTemp ? `Feels more like ${feelsLike}° with the wind chill though.` : `Feels warmer though, around ${feelsLike}°.`);
+    }
+
+    // Precip probability if not already covered
+    if (snow <= 0.1 && rain <= 0.01 && today.precipProbability > 30) {
+      parts.push(`There's a ${today.precipProbability}% chance of precipitation.`);
+    }
+
+    // Tonight
+    if (tonight && tonightDesc) {
+      parts.push(`Tonight: ${tonightDesc}, dropping to ${tonight.lo}°.`);
+    }
+
+    return parts.join(' ');
+  })();
 
   // Precipitation timing badge from Pirate Weather hourly data
   const precipBadge = (() => {
@@ -2325,18 +2380,55 @@ export function HubPage() {
       <Glass
         gridArea="weather"
         onClick={() => setPage('weather')}
-        style={{ padding: 20, justifyContent: 'space-between', cursor: 'pointer' }}
+        style={{ padding: 20, justifyContent: 'space-between', cursor: 'pointer', gap: 6 }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+        {/* Top row: current conditions */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <WxI t={wxIcon} sz={36} />
             <div>
               <div style={{ fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{wxTemp}&deg;F</div>
               <div style={{ fontSize: 15, color: C.t1, marginTop: 4 }}>
-                {wx ? wmoToDescription(wx.weatherCode) : 'Loading\u2026'} &middot; Humidity {wxHumidity}%
+                {wx ? wmoToDescription(wx.weatherCode) : 'Loading\u2026'} &middot; {wxHumidity}% humidity
               </div>
             </div>
           </div>
+          {/* Sun times + UV + Wind — single row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexShrink: 0 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: C.white, fontWeight: 600, letterSpacing: '0.05em' }}>SUNRISE</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.amber }}>{fmtSunTime(today?.sunrise)}</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: C.white, fontWeight: 600, letterSpacing: '0.05em' }}>SUNSET</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#fb923c' }}>{fmtSunTime(today?.sunset)}</div>
+            </div>
+            <div style={{ width: 1, height: 28, background: C.border }} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: C.white, fontWeight: 600, letterSpacing: '0.05em' }}>UV INDEX</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: (today?.uvIndexMax ?? 0) >= 6 ? C.red : (today?.uvIndexMax ?? 0) >= 3 ? C.amber : C.green }}>
+                {today?.uvIndexMax != null ? Math.round(today.uvIndexMax) : '--'}
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.t2, marginLeft: 4 }}>
+                  {(today?.uvIndexMax ?? 0) >= 8 ? 'Very High' : (today?.uvIndexMax ?? 0) >= 6 ? 'High' : (today?.uvIndexMax ?? 0) >= 3 ? 'Moderate' : 'Low'}
+                </span>
+              </div>
+            </div>
+            <div style={{ width: 1, height: 28, background: C.border }} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: C.white, fontWeight: 600, letterSpacing: '0.05em' }}>WIND</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: C.t1 }}>
+                {wx ? `${Math.round(wx.windSpeed)}` : '--'}
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.t2 }}> mph {wx ? windDir(wx.windDirection) : ''}</span>
+              </div>
+              {today && Math.round(today.windSpeedMax) > Math.round(wx?.windSpeed ?? 0) + 5 && (
+                <div style={{ fontSize: 12, color: C.t3, marginTop: 1 }}>Gusts to {Math.round(today.windSpeedMax)}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Forecast narrative + precip badge */}
+        <div>
           {precipBadge && (
             <div
               style={{
@@ -2347,29 +2439,46 @@ export function HubPage() {
                 border: '1px solid rgba(45,212,191,0.5)',
                 borderRadius: 10,
                 padding: '8px 14px',
-                marginTop: 4,
+                marginBottom: 8,
               }}
             >
               <WxI t={precipBadge.type} sz={18} />
               <span style={{ fontSize: 15, fontWeight: 800, color: '#5eead4' }}>{precipBadge.text}</span>
             </div>
           )}
+          {todayNarrative && (
+            <div style={{ fontSize: 16, color: C.t1, lineHeight: 1.55 }}>
+              {todayNarrative}
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+
+        {/* 5-day forecast */}
+        <div style={{ display: 'flex', gap: 8 }}>
           {forecast.map((f) => (
-            <div key={f.d} style={{ textAlign: 'center', flex: 1 }}>
-              <div style={{ fontSize: 12, color: C.t2, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>
+            <div
+              key={f.d}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                background: 'rgba(255,255,255,0.06)',
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                padding: '10px 6px 12px',
+              }}
+            >
+              <div style={{ fontSize: 13, color: C.white, fontWeight: 700, letterSpacing: '0.06em', marginBottom: 8 }}>
                 {f.d.toUpperCase()}
               </div>
-              <WxI t={f.t} sz={22} />
-              <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{f.hi}&deg;</div>
-              <div style={{ fontSize: 13, color: C.t3 }}>{f.lo}&deg;</div>
+              <WxI t={f.t} sz={26} />
+              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 6 }}>{f.hi}&deg;</div>
+              <div style={{ fontSize: 14, color: C.t3 }}>{f.lo}&deg;</div>
               {f.snow > 0.1 ? (
-                <div style={{ fontSize: 12, color: '#93c5fd', fontWeight: 600, marginTop: 2 }}>
+                <div style={{ fontSize: 13, color: '#93c5fd', fontWeight: 600, marginTop: 4 }}>
                   {f.snow.toFixed(1)}&quot;
                 </div>
               ) : f.rain > 0.01 ? (
-                <div style={{ fontSize: 12, color: C.accent, fontWeight: 600, marginTop: 2 }}>
+                <div style={{ fontSize: 13, color: C.accent, fontWeight: 600, marginTop: 4 }}>
                   {f.rain < 0.1 ? '<0.1' : f.rain.toFixed(1)}&quot;
                 </div>
               ) : null}
