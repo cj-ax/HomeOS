@@ -17,6 +17,7 @@ import { useCalendar, formatEventTime, formatEventDate, isToday, calendarColor, 
 import { useRing } from '@/hooks/useRing';
 import { useMealPlan, getNextMeal, getTodayMeals, formatDayShort, mealTypeColor, mealTypeLabel } from '@/hooks/useMealPlan';
 import type { Meal, MealDay } from '@/hooks/useMealPlan';
+import { useCommute, trafficColor, trafficLabel } from '@/hooks/useCommute';
 
 /* ── Color Constants ── */
 const C = {
@@ -901,6 +902,7 @@ export function HubPage() {
   const { events: calEvents } = useCalendar();
   const ring = useRing();
   const { plan: mealPlan } = useMealPlan();
+  const commute = useCommute(time);
   const [selectedRecipe, setSelectedRecipe] = useState<{ meal: Meal; dayLabel: string } | null>(null);
   const [expandedCam, setExpandedCam] = useState<string | null>(null);
   const urgentPlant = [...plants].sort((a, b) => a.daysUntil - b.daysUntil)[0] ?? null;
@@ -1500,14 +1502,52 @@ export function HubPage() {
       ),
       commute: (
         <DetailPage title="Commute" icon={IC.car({ sz: 20, c: C.accent })} onBack={goBack}>
+          {/* Visible destinations — hero cards */}
+          {commute.visible.map((d) => (
+            <Glass key={d.key} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: C.t1, marginBottom: 4 }}>
+                {d.label}
+                {d.route ? ` via ${d.route}` : ''}
+              </div>
+              <div style={{ fontSize: 42, fontWeight: 800, color: trafficColor(d.minutes) }}>
+                {d.minutes ?? '—'}{' '}
+                <span style={{ fontSize: 16, color: C.t1 }}>min</span>
+              </div>
+              <div style={{ fontSize: 11, color: trafficColor(d.minutes), marginTop: 4 }}>
+                {trafficLabel(d.minutes)}
+                {d.distance ? ` · ${d.distance}` : ''}
+              </div>
+            </Glass>
+          ))}
+          {/* All destinations */}
           <Glass>
-            <div style={{ fontSize: 11, color: C.t1, marginBottom: 4 }}>
-              Downtown MPLS via I-494 E
-            </div>
-            <div style={{ fontSize: 42, fontWeight: 800, color: C.green }}>
-              32 <span style={{ fontSize: 16, color: C.t1 }}>min</span>
-            </div>
-            <div style={{ fontSize: 11, color: C.green, marginTop: 4 }}>Light traffic</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>All Destinations</div>
+            {commute.all.map((d) => (
+              <div
+                key={d.key}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 0',
+                  borderTop: `1px solid ${C.border}`,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{d.label}</div>
+                  {d.route && <div style={{ fontSize: 11, color: C.t2 }}>{d.route}</div>}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: trafficColor(d.minutes) }}>
+                    {d.minutes ?? '—'}
+                  </span>
+                  <span style={{ fontSize: 11, color: C.t2, marginLeft: 4 }}>min</span>
+                  {d.distance && (
+                    <div style={{ fontSize: 10, color: C.t3 }}>{d.distance}</div>
+                  )}
+                </div>
+              </div>
+            ))}
           </Glass>
         </DetailPage>
       ),
@@ -2897,16 +2937,24 @@ export function HubPage() {
         onClick={() => setPage('commute')}
         style={{ padding: 16, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           {IC.car({ sz: 18, c: C.accent })}
           <span style={{ fontSize: 15, fontWeight: 700 }}>Commute</span>
         </div>
-        <div style={{ fontSize: 14, color: C.t1, marginBottom: 4 }}>Downtown MPLS</div>
-        <div>
-          <span style={{ fontSize: 36, fontWeight: 800, color: C.green }}>32</span>
-          <span style={{ fontSize: 14, color: C.t1, marginLeft: 4 }}>min</span>
-        </div>
-        <div style={{ fontSize: 13, color: C.green, marginTop: 4 }}>Light traffic</div>
+        {commute.visible.map((d, i) => (
+          <div key={d.key} style={{ marginTop: i > 0 ? 10 : 0 }}>
+            <div style={{ fontSize: 12, color: C.t2, marginBottom: 2 }}>{d.label}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <span style={{ fontSize: commute.visible.length === 1 ? 36 : 24, fontWeight: 800, color: trafficColor(d.minutes) }}>
+                {d.minutes ?? '—'}
+              </span>
+              <span style={{ fontSize: 13, color: C.t1 }}>min</span>
+              <span style={{ fontSize: 11, color: trafficColor(d.minutes), marginLeft: 'auto' }}>
+                {trafficLabel(d.minutes)}
+              </span>
+            </div>
+          </div>
+        ))}
       </Glass>
 
       {/* SPOTIFY — 2-column tile */}
