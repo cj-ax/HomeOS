@@ -4,7 +4,7 @@
  * Source of truth: smart-home-dashboard.jsx
  */
 
-import { useState, useEffect, useCallback, type CSSProperties, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
 import { BG } from '@/assets/bg';
 import { useWeather, wmoToType, wmoToDescription } from '@/hooks/useWeather';
 import { usePirateWeather } from '@/hooks/usePirateWeather';
@@ -908,6 +908,27 @@ export function HubPage() {
   const [spPos, setSpPos] = useState(0);
   const [showSpDevices, setShowSpDevices] = useState(false);
   const [showSpLibrary, setShowSpLibrary] = useState(false);
+  const [screen, setScreen] = useState(0); // 0 = home, 1 = bento
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swiped = useRef(false);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swiped.current = false;
+  }, []);
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (swiped.current) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    // Trigger swipe once horizontal movement > 40px and is dominant
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      swiped.current = true;
+      if (dx < 0 && screen === 0) setScreen(1);
+      if (dx > 0 && screen === 1) setScreen(0);
+    }
+  }, [screen]);
 
   useEffect(() => {
     const i = setInterval(() => setTime(new Date()), 1000);
@@ -2220,9 +2241,11 @@ export function HubPage() {
       })(),
     };
 
-  /* --- Main Grid Layout --- */
+  /* --- Main Layout --- */
   return (
     <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
       style={{
         width: '100%',
         height: '100vh',
@@ -2231,13 +2254,6 @@ export function HubPage() {
         color: C.white,
         position: 'relative',
         overflow: 'hidden',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(6, 1fr)',
-        gridTemplateRows: 'auto repeat(4, 1fr)',
-        gridTemplateAreas:
-          '"header header header header header header" "weather weather weather cameras cameras commute" "weather weather weather elec gas water" "schedule schedule meals spotify spotify spotify" "family family plants spotify spotify spotify"',
-        gap: 10,
-        padding: '0 8px 8px',
       }}
     >
       <link
@@ -2245,6 +2261,174 @@ export function HubPage() {
         rel="stylesheet"
       />
       <style>{`@keyframes fi{from{opacity:0}to{opacity:1}}@keyframes sd{from{opacity:0;transform:translateX(-50%) translateY(-16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}*{-webkit-tap-highlight-color:transparent;user-select:none;box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}button{font-family:inherit}button:active{opacity:.85!important}`}</style>
+
+      {/* Sliding screen container */}
+      <div
+        style={{
+          display: 'flex',
+          width: '200%',
+          height: '100%',
+          transform: `translateX(${screen === 0 ? '0' : '-50%'})`,
+          transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        {/* ═══════ SCREEN 1: HOME ═══════ */}
+        <div
+          style={{
+            width: '50%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Top bar */}
+          <header
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
+              alignItems: 'center',
+              padding: '12px 16px 8px',
+              background: 'rgba(10,15,20,0.35)',
+              backdropFilter: 'blur(12px)',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  background: C.accentDim,
+                  border: `1px solid rgba(45,212,191,0.2)`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {IC.home({ sz: 20, c: C.accent })}
+              </div>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>The Axelson&apos;s</span>
+            </div>
+            <span
+              style={{
+                fontSize: 32,
+                fontWeight: 800,
+                fontVariantNumeric: 'tabular-nums',
+                textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+              }}
+            >
+              {tStr}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+              {topAlert && (
+                <div
+                  onClick={() => { setScreen(1); setPage('alerts'); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    background: topAlert.severity === 'Extreme' ? '#dc2626' : topAlert.severity === 'Severe' ? C.red : C.amber,
+                    padding: '6px 12px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    boxShadow: topAlert.severity === 'Extreme' ? '0 0 16px rgba(220,38,38,0.5)' : '0 0 12px rgba(248,113,113,0.4)',
+                    animation: topAlert.severity === 'Extreme' ? 'pulse 2s ease-in-out infinite' : undefined,
+                  }}
+                >
+                  {IC.alert({ sz: 13, c: '#fff' })}
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>{topAlert.event}</span>
+                </div>
+              )}
+              <Glass
+                style={{
+                  padding: '7px 14px',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderRadius: 14,
+                }}
+              >
+                <WxI t={wxIcon} sz={16} />
+                <span style={{ fontSize: 15, fontWeight: 700 }}>{wxTemp}&deg;F</span>
+                <span style={{ color: C.t3 }}>&middot;</span>
+                {IC.drop({ sz: 14, c: C.accent })}
+                <span style={{ fontSize: 14, fontWeight: 600, color: C.t1 }}>{wxHumidity}%</span>
+              </Glass>
+            </div>
+          </header>
+
+          {/* Home content — narrow widget strip at bottom */}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', gap: 10, padding: '0 16px', justifyContent: 'space-between' }}>
+            {/* Weather — compact left widget */}
+            <Glass
+              onClick={() => { setScreen(1); setPage('weather'); }}
+              style={{ width: '10vw', padding: 14, cursor: 'pointer', gap: 6, flexShrink: 0 }}
+            >
+              <WxI t={wxIcon} sz={24} />
+              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, marginTop: 4 }}>{wxTemp}&deg;</div>
+              <div style={{ fontSize: 11, color: C.t2, marginTop: 2 }}>
+                {wx ? wmoToDescription(wx.weatherCode) : '...'}
+              </div>
+              <div style={{ fontSize: 11, color: C.t2, marginTop: 6 }}>
+                H {today?.hi ?? '--'}&deg; &middot; L {today?.lo ?? '--'}&deg;
+              </div>
+              {precipBadge && (
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#5eead4', marginTop: 4 }}>
+                  {precipBadge.text}
+                </div>
+              )}
+            </Glass>
+
+            {/* Schedule — compact right widget */}
+            <Glass
+              onClick={() => { setScreen(1); setPage('calendar'); }}
+              style={{ width: '10vw', padding: 14, cursor: 'pointer', gap: 4, flexShrink: 0 }}
+            >
+              {IC.cal({ sz: 18, c: C.purple })}
+              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>Schedule</div>
+              <div style={{ flex: 1, overflow: 'hidden', marginTop: 4 }}>
+                {calEvents.length === 0 ? (
+                  <div style={{ fontSize: 11, color: C.t2 }}>No events</div>
+                ) : (
+                  calEvents.slice(0, 3).map((e, i) => (
+                    <div key={i} style={{ fontSize: 11, color: C.t1, padding: '3px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {e.summary}
+                    </div>
+                  ))
+                )}
+              </div>
+            </Glass>
+          </div>
+
+          {/* Page indicator dots */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '6px 0' }}>
+            <div
+              onClick={() => setScreen(0)}
+              style={{ width: 8, height: 8, borderRadius: 4, background: screen === 0 ? C.accent : 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'background 0.3s' }}
+            />
+            <div
+              onClick={() => setScreen(1)}
+              style={{ width: 8, height: 8, borderRadius: 4, background: screen === 1 ? C.accent : 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'background 0.3s' }}
+            />
+          </div>
+        </div>
+
+        {/* ═══════ SCREEN 2: BENTO ═══════ */}
+        <div
+          style={{
+            width: '50%',
+            height: '100%',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(8, 1fr)',
+            gridTemplateRows: 'auto repeat(4, 1fr)',
+            gridTemplateAreas:
+              '"header header header header header header header header" "weather weather weather weather cameras cameras commute commute" "weather weather weather weather elec gas gas water" "schedule schedule meals meals spotify spotify spotify spotify" "family family plants plants spotify spotify spotify spotify"',
+            gap: 10,
+            padding: '0 8px 8px',
+          }}
+        >
 
       {/* HEADER */}
       <header
@@ -2260,6 +2444,7 @@ export function HubPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div
+            onClick={() => setScreen(0)}
             style={{
               width: 40,
               height: 40,
@@ -2269,6 +2454,7 @@ export function HubPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
             {IC.home({ sz: 20, c: C.accent })}
@@ -2830,6 +3016,21 @@ export function HubPage() {
           )}
         </div>
       </Glass>
+
+      {/* Page indicator dots (bento screen) */}
+      <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'center', gap: 8, paddingBottom: 4 }}>
+        <div
+          onClick={() => setScreen(0)}
+          style={{ width: 8, height: 8, borderRadius: 4, background: screen === 0 ? C.accent : 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'background 0.3s' }}
+        />
+        <div
+          onClick={() => setScreen(1)}
+          style={{ width: 8, height: 8, borderRadius: 4, background: screen === 1 ? C.accent : 'rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'background 0.3s' }}
+        />
+      </div>
+
+        </div>{/* end bento screen */}
+      </div>{/* end sliding container */}
 
       {(db === 'press' || ring.doorbellPressed) && <DoorbellPress onClose={() => { closeDb(); ring.dismissDoorbell(); }} snapshotUrl={ring.cameras[0]?.snapshotUrl} />}
       {(db === 'motion' || ring.motionAlert) && <MotionBanner onClose={() => { closeDb(); ring.dismissMotion(); }} camera={ring.motionAlert ?? undefined} />}

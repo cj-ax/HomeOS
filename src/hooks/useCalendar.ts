@@ -1,8 +1,8 @@
 /**
  * useCalendar — Fetches events from HA Google Calendar entities
  *
- * Uses the HA REST API (GET /api/calendars/{entity_id}) to get events,
- * since the WebSocket calendar/list_events command isn't available in all versions.
+ * Uses the HA REST API via Vite proxy (/ha-api → /api) to get events.
+ * Falls back to WebSocket calendar/list_events if REST fails.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -66,6 +66,14 @@ export function calendarLabel(entityId: string): string {
   return 'Personal';
 }
 
+interface RawEvent {
+  summary: string;
+  start: { dateTime?: string; date?: string };
+  end: { dateTime?: string; date?: string };
+  location?: string;
+  description?: string;
+}
+
 export function useCalendar() {
   const { connection } = useHomeAssistant();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -74,8 +82,6 @@ export function useCalendar() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchEvents = useCallback(async () => {
-    if (!connection) return;
-
     setLoading(true);
     setError(null);
 
@@ -93,25 +99,37 @@ export function useCalendar() {
       const allEvents: CalendarEvent[] = [];
 
       for (const entityId of CALENDAR_ENTITIES) {
+        let data: RawEvent[] | null = null;
+
+        // Try REST API via Vite proxy first
         try {
           const url = `/ha-api/calendars/${entityId}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
           const resp = await fetch(url, {
             headers: { Authorization: `Bearer ${HA_TOKEN}` },
           });
-
-          if (!resp.ok) {
-            console.warn(`[Home OS] Calendar ${entityId}: HTTP ${resp.status}`);
-            continue;
+          if (resp.ok) {
+            data = await resp.json();
           }
+        } catch {
+          // REST failed — try WebSocket fallback
+        }
 
-          const data: {
-            summary: string;
-            start: { dateTime?: string; date?: string };
-            end: { dateTime?: string; date?: string };
-            location?: string;
-            description?: string;
-          }[] = await resp.json();
+        // Fallback: WebSocket calendar/list_events
+        if (!data && connection) {
+          try {
+            const result = await connection.sendMessagePromise<{ events: RawEvent[] }>({
+              type: 'calendar/list_events',
+              entity_id: entityId,
+              start_date_time: start,
+              end_date_time: end,
+            });
+            data = result.events;
+          } catch (err) {
+            console.warn(`[Home OS] Calendar ${entityId} WS fallback failed:`, err);
+          }
+        }
 
+        if (data) {
           for (const ev of data) {
             const startVal = ev.start.dateTime ?? ev.start.date ?? '';
             const endVal = ev.end.dateTime ?? ev.end.date ?? '';
@@ -127,8 +145,6 @@ export function useCalendar() {
               description: ev.description,
             });
           }
-        } catch (err) {
-          console.warn(`[Home OS] Failed to fetch calendar ${entityId}:`, err);
         }
       }
 
