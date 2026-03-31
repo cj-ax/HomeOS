@@ -10,7 +10,7 @@ import { useEntity } from './useEntity';
 import { useHomeAssistant } from './useHomeAssistant';
 import { callService } from '@/utils/ha';
 
-const ENTITY_ID = 'media_player.spotify_chris_axelson';
+const DEFAULT_entityId = 'media_player.spotify_chris_axelson';
 
 export interface MediaItem {
   title: string;
@@ -43,8 +43,8 @@ export interface SpotifyState {
   updatedAt: number; // timestamp of last HA update
 }
 
-export function useSpotify() {
-  const entity = useEntity(ENTITY_ID);
+export function useSpotify(entityId: string = DEFAULT_entityId) {
+  const entity = useEntity(entityId);
   const { connection } = useHomeAssistant();
 
   const state: SpotifyState = useMemo(() => {
@@ -98,7 +98,7 @@ export function useSpotify() {
     (service: string, data?: Record<string, unknown>) => {
       if (!connection) return;
       callService(connection, 'media_player', service, data, {
-        entity_id: ENTITY_ID,
+        entity_id: entityId,
       });
     },
     [connection]
@@ -137,7 +137,7 @@ export function useSpotify() {
       try {
         const msg = {
           type: 'media_player/browse_media' as const,
-          entity_id: ENTITY_ID,
+          entity_id: entityId,
           ...(mediaContentId && mediaContentType
             ? { media_content_id: mediaContentId, media_content_type: mediaContentType }
             : {}),
