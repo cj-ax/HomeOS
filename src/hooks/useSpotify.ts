@@ -10,7 +10,7 @@ import { useEntity } from './useEntity';
 import { useHomeAssistant } from './useHomeAssistant';
 import { callService } from '@/utils/ha';
 
-const DEFAULT_entityId = 'media_player.spotify_chris_axelson';
+const DEFAULT_ENTITY_ID = 'media_player.desmon_d_spotify';
 
 export interface MediaItem {
   title: string;
@@ -43,7 +43,7 @@ export interface SpotifyState {
   updatedAt: number; // timestamp of last HA update
 }
 
-export function useSpotify(entityId: string = DEFAULT_entityId) {
+export function useSpotify(entityId: string = DEFAULT_ENTITY_ID) {
   const entity = useEntity(entityId);
   const { connection } = useHomeAssistant();
 
